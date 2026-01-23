@@ -226,20 +226,8 @@ class HydraApp {
       action: () => this.switchToPreviousTerminal(),
     });
 
-    for (let i = 1; i <= 9; i++) {
-      commandRegistry.register({
-        id: `terminal.focus.${i}`,
-        label: `Focus Terminal ${i}`,
-        category: 'Terminal',
-        shortcut: `⌘${i}`,
-        action: () => {
-          const ids = Array.from(this.terminals.keys());
-          if (ids[i - 1]) {
-            this.focusTerminal(ids[i - 1]);
-          }
-        },
-      });
-    }
+    // Note: Cmd+1-9 shortcuts are handled in setupEventListeners
+    // Use "Search Terminals" command to select terminals by name
 
     // Split commands
     commandRegistry.register({

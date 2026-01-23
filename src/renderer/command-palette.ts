@@ -106,35 +106,41 @@ export class CommandPalette {
       this.updateList();
     });
 
-    // Keyboard navigation
-    this.input.addEventListener('keydown', (e) => {
+    // Global keyboard handling (captures events before xterm)
+    document.addEventListener('keydown', (e) => {
+      // Toggle shortcut
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'p') {
+        e.preventDefault();
+        this.toggle();
+        return;
+      }
+
+      // Only handle when visible
+      if (!this.isVisible) return;
+
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
+          e.stopPropagation();
           this.selectNext();
           break;
         case 'ArrowUp':
           e.preventDefault();
+          e.stopPropagation();
           this.selectPrevious();
           break;
         case 'Enter':
           e.preventDefault();
+          e.stopPropagation();
           this.executeSelected();
           break;
         case 'Escape':
           e.preventDefault();
+          e.stopPropagation();
           this.hide();
           break;
       }
-    });
-
-    // Global shortcut
-    document.addEventListener('keydown', (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'p') {
-        e.preventDefault();
-        this.toggle();
-      }
-    });
+    }, true); // Use capture phase
   }
 
   private updateList(): void {
