@@ -33,6 +33,16 @@ export class SplitPanelManager {
     return this.root;
   }
 
+  setRootFromNode(node: PanelNode | null): void {
+    this.root = node;
+    this.render();
+  }
+
+  clear(): void {
+    this.root = null;
+    this.render();
+  }
+
   splitTerminal(terminalId: string, direction: SplitDirection, newTerminalId: string): void {
     if (!this.root) {
       this.root = { type: 'terminal', terminalId: newTerminalId };
