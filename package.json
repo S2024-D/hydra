@@ -1,0 +1,34 @@
+{
+  "name": "hydra",
+  "version": "0.1.0",
+  "description": "Multi-terminal manager for AI agents",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build:main": "tsc",
+    "build:renderer": "esbuild src/renderer/renderer.ts --bundle --outfile=dist/renderer/renderer.js --platform=browser --external:electron",
+    "build": "npm run build:main && npm run build:renderer",
+    "copy:html": "cp src/renderer/index.html dist/renderer/",
+    "start": "npm run build && npm run copy:html && electron .",
+    "dev": "npm run build && npm run copy:html && electron .",
+    "rebuild": "npx @electron/rebuild"
+  },
+  "keywords": [
+    "terminal",
+    "electron",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.2",
+    "electron": "^40.0.0",
+    "esbuild": "^0.27.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
+    "node-pty": "^1.1.0"
+  }
+}
