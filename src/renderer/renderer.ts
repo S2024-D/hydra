@@ -1,7 +1,7 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { CommandPalette, commandRegistry } from './command-palette';
-import { SplitPanelManager, SplitDirection, PanelNode } from './split-panel';
+import { SplitPanelManager, SplitDirection, PanelNode, PanelGroup } from './split-panel';
 import { inputDialog } from './input-dialog';
 
 interface ProjectSplitState {
@@ -93,33 +93,256 @@ class HydraApp {
   private projectSplitStates: Map<string | null, ProjectSplitState> = new Map();
 
   private sidebar: HTMLElement;
-  private tabsContainer: HTMLElement;
   private terminalsContainer: HTMLElement;
   private commandPalette: CommandPalette;
   private splitManager: SplitPanelManager;
 
+  // Drag state for panel tabs
+  private panelDragState: {
+    terminalId: string;
+    sourceGroup: PanelGroup;
+    startX: number;
+    startY: number;
+    isDragging: boolean;
+    ghostElement: HTMLElement | null;
+  } | null = null;
+
   constructor() {
     this.sidebar = document.getElementById('sidebar')!;
-    this.tabsContainer = document.getElementById('tabs-container')!;
     this.terminalsContainer = document.getElementById('terminals-container')!;
     this.commandPalette = new CommandPalette();
-    this.splitManager = new SplitPanelManager(
-      this.terminalsContainer,
-      (id) => this.focusTerminal(id),
-      (id) => this.terminals.get(id)?.element || null
-    );
 
+    this.splitManager = new SplitPanelManager(this.terminalsContainer, {
+      onTerminalFocus: (id) => this.focusTerminal(id),
+      onTerminalClose: (id) => this.closeTerminal(id),
+      onTabDragStart: (terminalId, groupNode, e) => this.handlePanelTabDragStart(terminalId, groupNode, e),
+      getTerminalElement: (id) => this.terminals.get(id)?.element || null,
+      getTerminalName: (id) => this.terminals.get(id)?.name || `Terminal ${id.slice(0, 6)}`,
+    });
+
+    this.setupPanelDragListeners();
     this.registerCommands();
     this.setupEventListeners();
     this.init();
   }
 
+  private setupPanelDragListeners(): void {
+    document.addEventListener('mousemove', (e) => this.handlePanelDragMove(e));
+    document.addEventListener('mouseup', (e) => this.handlePanelDragEnd(e));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.panelDragState?.isDragging) {
+        this.cancelPanelDrag();
+      }
+    });
+  }
+
+  private handlePanelTabDragStart(terminalId: string, sourceGroup: PanelGroup, e: MouseEvent): void {
+    this.panelDragState = {
+      terminalId,
+      sourceGroup,
+      startX: e.clientX,
+      startY: e.clientY,
+      isDragging: false,
+      ghostElement: null,
+    };
+  }
+
+  private handlePanelDragMove(e: MouseEvent): void {
+    if (!this.panelDragState) return;
+
+    const dx = Math.abs(e.clientX - this.panelDragState.startX);
+    const dy = Math.abs(e.clientY - this.panelDragState.startY);
+
+    // Start drag after 5px threshold
+    if (!this.panelDragState.isDragging && (dx > 5 || dy > 5)) {
+      this.panelDragState.isDragging = true;
+      this.panelDragState.ghostElement = this.createDragGhost(this.panelDragState.terminalId);
+      document.body.classList.add('dragging-active');
+    }
+
+    if (this.panelDragState.isDragging && this.panelDragState.ghostElement) {
+      this.panelDragState.ghostElement.style.left = `${e.clientX + 10}px`;
+      this.panelDragState.ghostElement.style.top = `${e.clientY + 10}px`;
+
+      // Show drop zone overlay
+      this.updateDropZoneOverlay(e.clientX, e.clientY);
+    }
+  }
+
+  private handlePanelDragEnd(e: MouseEvent): void {
+    if (!this.panelDragState) return;
+
+    if (this.panelDragState.isDragging) {
+      // Handle drop
+      const dropResult = this.detectDropTarget(e.clientX, e.clientY);
+
+      if (dropResult) {
+        const { terminalId, sourceGroup } = this.panelDragState;
+
+        if (dropResult.position === 'center' && dropResult.targetGroup) {
+          // Add to existing group as tab
+          if (dropResult.targetGroup !== sourceGroup) {
+            this.splitManager.moveTerminal(terminalId, dropResult.targetTerminalId, 'center');
+          }
+        } else if (dropResult.position !== 'center' && dropResult.targetTerminalId) {
+          // Create new split
+          this.splitManager.moveTerminal(terminalId, dropResult.targetTerminalId, dropResult.position);
+        }
+
+        this.focusTerminal(terminalId);
+        setTimeout(() => this.fitAllTerminals(), 0);
+      }
+
+      // Cleanup
+      this.panelDragState.ghostElement?.remove();
+      document.body.classList.remove('dragging-active');
+      this.hideDropZoneOverlay();
+    }
+
+    this.panelDragState = null;
+  }
+
+  private cancelPanelDrag(): void {
+    if (this.panelDragState) {
+      this.panelDragState.ghostElement?.remove();
+      document.body.classList.remove('dragging-active');
+      this.hideDropZoneOverlay();
+      this.panelDragState = null;
+    }
+  }
+
+  private createDragGhost(terminalId: string): HTMLElement {
+    const ghost = document.createElement('div');
+    ghost.className = 'tab-drag-ghost';
+    const name = this.terminals.get(terminalId)?.name || 'Terminal';
+    ghost.innerHTML = `<span class="tab-name">${name}</span>`;
+    document.body.appendChild(ghost);
+    return ghost;
+  }
+
+  private dropZoneOverlay: HTMLElement | null = null;
+
+  private updateDropZoneOverlay(x: number, y: number): void {
+    if (!this.dropZoneOverlay) {
+      this.dropZoneOverlay = document.createElement('div');
+      this.dropZoneOverlay.className = 'drop-zone-overlay';
+      document.body.appendChild(this.dropZoneOverlay);
+    }
+
+    const dropResult = this.detectDropTarget(x, y);
+
+    if (dropResult && dropResult.rect) {
+      const { rect, position } = dropResult;
+      let left: number, top: number, width: number, height: number;
+
+      switch (position) {
+        case 'left':
+          left = rect.left; top = rect.top;
+          width = rect.width * 0.5; height = rect.height;
+          break;
+        case 'right':
+          left = rect.left + rect.width * 0.5; top = rect.top;
+          width = rect.width * 0.5; height = rect.height;
+          break;
+        case 'top':
+          left = rect.left; top = rect.top;
+          width = rect.width; height = rect.height * 0.5;
+          break;
+        case 'bottom':
+          left = rect.left; top = rect.top + rect.height * 0.5;
+          width = rect.width; height = rect.height * 0.5;
+          break;
+        case 'center':
+        default:
+          left = rect.left; top = rect.top;
+          width = rect.width; height = rect.height;
+          break;
+      }
+
+      this.dropZoneOverlay.style.display = 'block';
+      this.dropZoneOverlay.style.left = `${left}px`;
+      this.dropZoneOverlay.style.top = `${top}px`;
+      this.dropZoneOverlay.style.width = `${width}px`;
+      this.dropZoneOverlay.style.height = `${height}px`;
+      this.dropZoneOverlay.dataset.position = position;
+    } else {
+      this.dropZoneOverlay.style.display = 'none';
+    }
+  }
+
+  private hideDropZoneOverlay(): void {
+    if (this.dropZoneOverlay) {
+      this.dropZoneOverlay.style.display = 'none';
+    }
+  }
+
+  private detectDropTarget(x: number, y: number): {
+    position: 'left' | 'right' | 'top' | 'bottom' | 'center';
+    targetTerminalId: string | null;
+    targetGroup: PanelGroup | null;
+    rect: DOMRect | null;
+  } | null {
+    const groups = this.terminalsContainer.querySelectorAll('.panel-group');
+
+    for (const group of Array.from(groups)) {
+      const rect = group.getBoundingClientRect();
+
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        // Find terminal ID in this group
+        const contentArea = group.querySelector('.panel-group-content');
+        const activeWrapper = contentArea?.querySelector('.terminal-wrapper[style*="display: block"]');
+        const terminalId = activeWrapper?.id?.replace('terminal-', '') || null;
+        const panelGroup = terminalId ? this.splitManager.findGroupByTerminalId(terminalId) : null;
+
+        // Skip if dropping on source group with only one tab
+        if (this.panelDragState && panelGroup === this.panelDragState.sourceGroup &&
+            panelGroup && panelGroup.terminalIds.length === 1) {
+          return null;
+        }
+
+        const position = this.getDropPosition(x, y, rect);
+
+        return {
+          position,
+          targetTerminalId: terminalId,
+          targetGroup: panelGroup,
+          rect,
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private getDropPosition(x: number, y: number, rect: DOMRect): 'left' | 'right' | 'top' | 'bottom' | 'center' {
+    const relX = (x - rect.left) / rect.width;
+    const relY = (y - rect.top) / rect.height;
+    const threshold = 0.25;
+
+    const distances = {
+      left: relX,
+      right: 1 - relX,
+      top: relY,
+      bottom: 1 - relY,
+    };
+
+    let minEdge: 'left' | 'right' | 'top' | 'bottom' | 'center' = 'center';
+    let minDistance = threshold;
+
+    for (const [edge, distance] of Object.entries(distances)) {
+      if (distance < minDistance) {
+        minDistance = distance;
+        minEdge = edge as 'left' | 'right' | 'top' | 'bottom';
+      }
+    }
+
+    return minEdge;
+  }
+
   private async init(): Promise<void> {
-    // Load settings first
     this.settings = await window.electronAPI.getSettings();
     this.applyTheme();
 
-    // Try to restore session
     const session = await window.electronAPI.loadSession();
     if (session && session.terminals.length > 0) {
       await this.restoreSession(session);
@@ -127,13 +350,11 @@ class HydraApp {
       await this.createTerminal();
     }
 
-    // Save session on window close
     window.addEventListener('beforeunload', () => {
       this.saveSession();
     });
   }
 
-  // Helper methods for project-based terminal management
   private getTerminalsForProject(projectId: string | null): TerminalInstance[] {
     return Array.from(this.terminals.values()).filter((t) => t.projectId === projectId);
   }
@@ -160,18 +381,13 @@ class HydraApp {
   private switchToProject(projectId: string | null): void {
     if (this.activeProjectId === projectId) return;
 
-    // Save current project's split state
     this.saveCurrentProjectSplitState();
-
-    // Update active project
     this.activeProjectId = projectId;
 
-    // Restore new project's split state
     const state = this.getOrCreateProjectSplitState(projectId);
     const terminalsForProject = this.getTerminalsForProject(projectId);
 
     if (state.rootNode) {
-      // Restore saved split layout
       this.splitManager.setRootFromNode(state.rootNode);
       if (state.activeTerminalId && this.terminals.has(state.activeTerminalId)) {
         this.activeTerminalId = state.activeTerminalId;
@@ -179,37 +395,18 @@ class HydraApp {
         this.activeTerminalId = terminalsForProject[0].id;
       }
     } else if (terminalsForProject.length > 0) {
-      // No saved state, set first terminal as root
       this.splitManager.setRoot(terminalsForProject[0].id);
       this.activeTerminalId = terminalsForProject[0].id;
     } else {
-      // No terminals for this project
       this.splitManager.clear();
       this.activeTerminalId = null;
     }
 
-    // Re-render tabs and sidebar
-    this.renderTabs();
     this.renderSidebar();
 
-    // Focus the active terminal
     if (this.activeTerminalId) {
       const instance = this.terminals.get(this.activeTerminalId);
       if (instance) {
-        // Update tab highlight
-        this.tabsContainer.querySelectorAll('.tab').forEach((tab) => {
-          tab.classList.toggle('active', tab.getAttribute('data-id') === this.activeTerminalId);
-        });
-
-        // Update panel highlighting
-        this.terminalsContainer.querySelectorAll('.panel-terminal').forEach((panel) => {
-          const wrapper = panel.querySelector('.terminal-wrapper');
-          if (wrapper) {
-            const terminalId = wrapper.id.replace('terminal-', '');
-            panel.classList.toggle('active', terminalId === this.activeTerminalId);
-          }
-        });
-
         setTimeout(() => {
           instance.fitAddon.fit();
           window.electronAPI.resize(instance.id, instance.terminal.cols, instance.terminal.rows);
@@ -222,10 +419,8 @@ class HydraApp {
   private applyTheme(): void {
     if (!this.settings) return;
 
-    const isDark = this.settings.theme === 'dark';
     document.documentElement.setAttribute('data-theme', this.settings.theme);
 
-    // Apply to existing terminals
     for (const instance of this.terminals.values()) {
       instance.terminal.options.theme = this.settings.terminalTheme;
       instance.terminal.options.fontFamily = this.settings.fontFamily;
@@ -247,15 +442,12 @@ class HydraApp {
   }
 
   private async restoreSession(session: SessionData): Promise<void> {
-    // Restore projects first
     for (const project of session.projects) {
       this.projects.set(project.id, project);
     }
 
-    // Map old terminal IDs to new IDs
     const idMapping = new Map<string, string>();
 
-    // Restore terminals
     for (const terminalData of session.terminals) {
       const newId = await window.electronAPI.createTerminal(terminalData.name, terminalData.cwd);
       idMapping.set(terminalData.id, newId);
@@ -264,15 +456,22 @@ class HydraApp {
       this.terminalsContainer.appendChild(instance.element);
     }
 
-    // Helper function to update terminal IDs in PanelNode
-    const updateNodeIds = (node: PanelNode | null): PanelNode | null => {
+    const updateNodeIds = (node: any): any => {
       if (!node) return null;
       if (node.type === 'terminal' && node.terminalId) {
         const newId = idMapping.get(node.terminalId);
         if (newId) {
           return { ...node, terminalId: newId };
         }
-        return null; // Terminal no longer exists
+        return null;
+      }
+      if (node.type === 'group' && node.terminalIds) {
+        const newTerminalIds = node.terminalIds
+          .map((id: string) => idMapping.get(id))
+          .filter((id: string | undefined) => id);
+        if (newTerminalIds.length === 0) return null;
+        const newActiveId = idMapping.get(node.activeTerminalId) || newTerminalIds[0];
+        return { ...node, terminalIds: newTerminalIds, activeTerminalId: newActiveId };
       }
       if (node.type === 'split' && node.children) {
         const newFirst = updateNodeIds(node.children[0]);
@@ -285,7 +484,6 @@ class HydraApp {
       return node;
     };
 
-    // Restore project split states with updated IDs
     if (session.projectSplitStates) {
       for (const savedState of session.projectSplitStates) {
         const updatedRootNode = updateNodeIds(savedState.rootNode);
@@ -301,16 +499,13 @@ class HydraApp {
       }
     }
 
-    // Set active project (use saved or default to first project with terminals)
     this.activeProjectId = session.activeProjectId;
 
-    // Restore the current project's split state
     const state = this.projectSplitStates.get(this.activeProjectId);
     if (state && state.rootNode) {
       this.splitManager.setRootFromNode(state.rootNode);
       this.activeTerminalId = state.activeTerminalId;
     } else {
-      // No saved state, show first terminal for active project
       const terminalsForProject = this.getTerminalsForProject(this.activeProjectId);
       if (terminalsForProject.length > 0) {
         this.splitManager.setRoot(terminalsForProject[0].id);
@@ -318,10 +513,8 @@ class HydraApp {
       }
     }
 
-    this.renderTabs();
     this.renderSidebar();
 
-    // Focus the active terminal
     if (this.activeTerminalId) {
       this.focusTerminal(this.activeTerminalId);
     } else {
@@ -333,7 +526,6 @@ class HydraApp {
   }
 
   private saveSession(): void {
-    // Save current project's split state before saving session
     this.saveCurrentProjectSplitState();
 
     const terminals = Array.from(this.terminals.values()).map(t => ({
@@ -345,7 +537,6 @@ class HydraApp {
 
     const projects = Array.from(this.projects.values());
 
-    // Serialize project split states
     const projectSplitStates = Array.from(this.projectSplitStates.values()).map(state => ({
       projectId: state.projectId,
       rootNode: state.rootNode,
@@ -398,10 +589,6 @@ class HydraApp {
       action: () => this.switchToPreviousTerminal(),
     });
 
-    // Note: Cmd+1-9 shortcuts are handled in setupEventListeners
-    // Use "Search Terminals" command to select terminals by name
-
-    // Split commands
     commandRegistry.register({
       id: 'terminal.splitVertical',
       label: 'Split Terminal Right',
@@ -418,7 +605,6 @@ class HydraApp {
       action: () => this.splitTerminal('horizontal'),
     });
 
-    // Rename command
     commandRegistry.register({
       id: 'terminal.rename',
       label: 'Rename Terminal',
@@ -426,7 +612,6 @@ class HydraApp {
       action: () => this.renameActiveTerminal(),
     });
 
-    // Terminal search/select
     commandRegistry.register({
       id: 'terminal.search',
       label: 'Search Terminals',
@@ -434,7 +619,6 @@ class HydraApp {
       action: () => this.showTerminalSearch(),
     });
 
-    // Theme commands
     commandRegistry.register({
       id: 'settings.themeDark',
       label: 'Dark Theme',
@@ -463,7 +647,6 @@ class HydraApp {
       action: () => this.changeFontSize(-1),
     });
 
-    // Project commands
     commandRegistry.register({
       id: 'project.add',
       label: 'Add Project',
@@ -524,14 +707,12 @@ class HydraApp {
       if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
         e.preventDefault();
         const index = parseInt(e.key) - 1;
-        // Only target terminals in current project
         const terminalsForProject = this.getTerminalsForProject(this.activeProjectId);
         const ids = terminalsForProject.map((t) => t.id);
         if (ids[index]) {
           this.focusTerminal(ids[index]);
         }
       }
-      // Split shortcuts
       if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -540,10 +721,6 @@ class HydraApp {
           this.splitTerminal('vertical');
         }
       }
-    });
-
-    document.getElementById('add-terminal-btn')?.addEventListener('click', () => {
-      this.createTerminal();
     });
 
     document.getElementById('add-project-btn')?.addEventListener('click', () => {
@@ -558,7 +735,6 @@ class HydraApp {
     }
   }
 
-  // Rename terminal
   private async renameActiveTerminal(): Promise<void> {
     if (!this.activeTerminalId) return;
     const instance = this.terminals.get(this.activeTerminalId);
@@ -577,23 +753,17 @@ class HydraApp {
     instance.name = newName;
     window.electronAPI.renameTerminal(id, newName);
 
-    // Update tab
-    const tab = this.tabsContainer.querySelector(`[data-id="${id}"] .tab-name`);
-    if (tab) {
-      tab.textContent = newName;
-    }
-
+    // Re-render to update tab names in panels
+    this.splitManager.render();
     this.renderSidebar();
   }
 
-  // Terminal search - shows list of terminals using command palette
   private showTerminalSearch(): void {
     const terminals = Array.from(this.terminals.values());
     if (terminals.length === 0) return;
 
     const tempCommandIds: string[] = [];
 
-    // Temporarily register terminal selection commands
     terminals.forEach((t) => {
       const cmdId = `terminal.select.temp.${t.id}`;
       tempCommandIds.push(cmdId);
@@ -607,7 +777,6 @@ class HydraApp {
       });
     });
 
-    // Clean up temp commands when palette is hidden
     const cleanup = () => {
       tempCommandIds.forEach(id => commandRegistry.unregister(id));
     };
@@ -615,14 +784,12 @@ class HydraApp {
     this.commandPalette.show('Go to Terminal', cleanup);
   }
 
-  // Split methods
   private async splitTerminal(direction: SplitDirection): Promise<void> {
     if (!this.activeTerminalId) return;
 
     const activeInstance = this.terminals.get(this.activeTerminalId);
     if (!activeInstance) return;
 
-    // Create new terminal with same project
     const name = activeInstance.projectId
       ? `${this.projects.get(activeInstance.projectId)?.name} - Terminal`
       : `Terminal ${this.terminals.size + 1}`;
@@ -644,19 +811,16 @@ class HydraApp {
     }
 
     this.splitManager.splitTerminal(this.activeTerminalId, direction, id);
-    this.createTab(instance);
     this.renderSidebar();
     this.focusTerminal(id);
 
     setTimeout(() => this.fitAllTerminals(), 0);
   }
 
-  // Project methods
   async addProject(): Promise<void> {
     const project = await window.electronAPI.addProject();
     if (project) {
       this.projects.set(project.id, project);
-      // Save current project state before switching
       this.saveCurrentProjectSplitState();
       this.renderSidebar();
       await this.createTerminalInProject(project.id);
@@ -673,8 +837,6 @@ class HydraApp {
 
     await window.electronAPI.removeProject(projectId);
     this.projects.delete(projectId);
-
-    // Remove project split state
     this.projectSplitStates.delete(projectId);
 
     if (this.activeProjectId === projectId) {
@@ -702,7 +864,6 @@ class HydraApp {
     await this.createTerminal(name, project.path, projectId);
   }
 
-  // Terminal methods
   private createTerminalInstance(id: string, name: string, projectId: string | null): TerminalInstance {
     const terminal = new Terminal({
       theme: this.settings?.terminalTheme || {
@@ -754,117 +915,42 @@ class HydraApp {
       }
     }
 
-    // Add element to container
     this.terminalsContainer.appendChild(instance.element);
 
-    // Handle project switching if needed
     if (terminalProjectId !== this.activeProjectId) {
-      // Save current project state before switching
       this.saveCurrentProjectSplitState();
       this.activeProjectId = terminalProjectId;
-      this.renderTabs();
     }
 
-    // Set the new terminal as root for this project
-    this.splitManager.setRoot(id);
+    // Add to existing group or create new root
+    const existingGroup = this.splitManager.getRoot();
+    if (existingGroup && existingGroup.type === 'group') {
+      this.splitManager.addTerminalToGroup(existingGroup, id);
+    } else {
+      this.splitManager.setRoot(id);
+    }
 
-    // Update project split state
     const state = this.getOrCreateProjectSplitState(terminalProjectId);
     state.rootNode = this.splitManager.getRoot();
     state.activeTerminalId = id;
 
-    this.createTab(instance);
     this.renderSidebar();
     this.focusTerminal(id);
-  }
-
-  private renderTabs(): void {
-    // Remove all existing tabs (except add button)
-    this.tabsContainer.querySelectorAll('.tab').forEach((tab) => tab.remove());
-
-    // Get terminals for current project
-    const terminalsForProject = this.getTerminalsForProject(this.activeProjectId);
-
-    // Create tabs for each terminal in current project
-    for (const instance of terminalsForProject) {
-      this.createTab(instance);
-    }
-  }
-
-  private createTab(instance: TerminalInstance): void {
-    // Only create tabs for terminals belonging to the current project
-    if (instance.projectId !== this.activeProjectId) return;
-
-    const tab = document.createElement('div');
-    tab.className = 'tab';
-    tab.dataset.id = instance.id;
-    tab.innerHTML = `
-      <span class="tab-name">${instance.name}</span>
-      <button class="tab-close">×</button>
-    `;
-
-    if (this.activeTerminalId === instance.id) {
-      tab.classList.add('active');
-    }
-
-    tab.addEventListener('click', (e) => {
-      if (!(e.target as HTMLElement).classList.contains('tab-close')) {
-        this.focusTerminal(instance.id);
-      }
-    });
-
-    // Double-click to rename
-    tab.querySelector('.tab-name')?.addEventListener('dblclick', async (e) => {
-      e.stopPropagation();
-      const currentInstance = this.terminals.get(instance.id);
-      if (!currentInstance) return;
-      const newName = await inputDialog.show('Enter new terminal name:', currentInstance.name);
-      if (newName && newName.trim()) {
-        this.renameTerminal(instance.id, newName.trim());
-      }
-    });
-
-    tab.querySelector('.tab-close')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.closeTerminal(instance.id);
-    });
-
-    const addBtn = document.getElementById('add-terminal-btn');
-    this.tabsContainer.insertBefore(tab, addBtn);
   }
 
   focusTerminal(id: string): void {
     const instance = this.terminals.get(id);
     if (!instance) return;
 
-    // Check if terminal belongs to a different project
     const terminalProjectId = instance.projectId;
     if (terminalProjectId !== this.activeProjectId) {
-      // Switch to the terminal's project first
       this.switchToProject(terminalProjectId);
     }
 
     this.activeTerminalId = id;
 
-    // If terminal is not in current split view, set it as the root
-    const idsInSplit = this.splitManager.getAllTerminalIds();
-    if (!idsInSplit.includes(id)) {
-      this.splitManager.setRoot(id);
-    }
-
-    // Update tab highlight
-    this.tabsContainer.querySelectorAll('.tab').forEach((tab) => {
-      tab.classList.toggle('active', tab.getAttribute('data-id') === id);
-    });
-
-    // Update panel highlighting
-    this.terminalsContainer.querySelectorAll('.panel-terminal').forEach((panel) => {
-      const wrapper = panel.querySelector('.terminal-wrapper');
-      if (wrapper) {
-        const terminalId = wrapper.id.replace('terminal-', '');
-        panel.classList.toggle('active', terminalId === id);
-      }
-    });
+    // Focus in split manager
+    this.splitManager.focusTerminal(id);
 
     this.renderSidebar();
 
@@ -876,7 +962,6 @@ class HydraApp {
   }
 
   private switchToNextTerminal(): void {
-    // Only cycle through terminals in current project
     const terminalsForProject = this.getTerminalsForProject(this.activeProjectId);
     const ids = terminalsForProject.map((t) => t.id);
     if (ids.length === 0) return;
@@ -889,7 +974,6 @@ class HydraApp {
   }
 
   private switchToPreviousTerminal(): void {
-    // Only cycle through terminals in current project
     const terminalsForProject = this.getTerminalsForProject(this.activeProjectId);
     const ids = terminalsForProject.map((t) => t.id);
     if (ids.length === 0) return;
@@ -914,9 +998,6 @@ class HydraApp {
 
     instance.terminal.dispose();
 
-    const tab = this.tabsContainer.querySelector(`[data-id="${id}"]`);
-    tab?.remove();
-
     if (instance.projectId) {
       const project = this.projects.get(instance.projectId);
       if (project) {
@@ -927,10 +1008,8 @@ class HydraApp {
 
     this.terminals.delete(id);
 
-    // Remove from split manager and get remaining terminal to focus
     const remainingId = this.splitManager.removeTerminal(id);
 
-    // Update project split state
     const state = this.projectSplitStates.get(terminalProjectId);
     if (state) {
       state.rootNode = this.splitManager.getRoot();
@@ -943,30 +1022,24 @@ class HydraApp {
       if (remainingId) {
         this.focusTerminal(remainingId);
       } else {
-        // Check for remaining terminals in current project
         const remainingInProject = this.getTerminalsForProject(this.activeProjectId);
         if (remainingInProject.length > 0) {
           this.focusTerminal(remainingInProject[remainingInProject.length - 1].id);
         } else {
-          // No terminals left in current project, try to switch to another project
           const allTerminals = Array.from(this.terminals.values());
           if (allTerminals.length > 0) {
-            // Switch to a project that has terminals
             this.focusTerminal(allTerminals[allTerminals.length - 1].id);
           } else {
-            // No terminals at all, create a new one
             this.createTerminal();
           }
         }
       }
     }
 
-    this.renderTabs();
     this.renderSidebar();
     setTimeout(() => this.fitAllTerminals(), 0);
   }
 
-  // Sidebar rendering
   private renderSidebar(): void {
     const projectList = this.sidebar.querySelector('.project-list');
     if (!projectList) return;
