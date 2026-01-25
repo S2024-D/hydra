@@ -17,6 +17,16 @@ export interface Command {
   action: () => void | Promise<void>;
 }
 
+// Category order for sorting
+const CATEGORY_ORDER: string[] = [
+  'Terminal',
+  'Panel',
+  'Navigation',
+  'Project',
+  'Settings',
+  'View',
+];
+
 class CommandRegistry {
   private commands: Map<string, Command> = new Map();
 
@@ -32,6 +42,10 @@ class CommandRegistry {
     return Array.from(this.commands.values());
   }
 
+  getAllSorted(): Command[] {
+    return this.sortByCategory(this.getAll());
+  }
+
   execute(id: string): void {
     const command = this.commands.get(id);
     if (command) {
@@ -41,25 +55,65 @@ class CommandRegistry {
 
   search(query: string): Command[] {
     if (!query) {
-      return this.getAll();
+      return this.getAllSorted();
     }
 
     const lowerQuery = query.toLowerCase();
-    return this.getAll()
-      .filter((cmd) => {
+    return this.sortByCategory(
+      this.getAll().filter((cmd) => {
         const searchText = `${cmd.category || ''} ${cmd.label}`.toLowerCase();
         return this.fuzzyMatch(lowerQuery, searchText);
       })
-      .sort((a, b) => {
-        // Prioritize matches at the start
-        const aLabel = a.label.toLowerCase();
-        const bLabel = b.label.toLowerCase();
-        const aStarts = aLabel.startsWith(lowerQuery);
-        const bStarts = bLabel.startsWith(lowerQuery);
-        if (aStarts && !bStarts) return -1;
-        if (!aStarts && bStarts) return 1;
-        return 0;
-      });
+    );
+  }
+
+  getByCategory(): Map<string, Command[]> {
+    const grouped = new Map<string, Command[]>();
+
+    for (const cmd of this.getAllSorted()) {
+      const category = cmd.category || 'Other';
+      if (!grouped.has(category)) {
+        grouped.set(category, []);
+      }
+      grouped.get(category)!.push(cmd);
+    }
+
+    return grouped;
+  }
+
+  searchByCategory(query: string): Map<string, Command[]> {
+    const commands = this.search(query);
+    const grouped = new Map<string, Command[]>();
+
+    for (const cmd of commands) {
+      const category = cmd.category || 'Other';
+      if (!grouped.has(category)) {
+        grouped.set(category, []);
+      }
+      grouped.get(category)!.push(cmd);
+    }
+
+    return grouped;
+  }
+
+  private sortByCategory(commands: Command[]): Command[] {
+    return commands.sort((a, b) => {
+      const aCategory = a.category || 'Other';
+      const bCategory = b.category || 'Other';
+      const aIndex = CATEGORY_ORDER.indexOf(aCategory);
+      const bIndex = CATEGORY_ORDER.indexOf(bCategory);
+
+      // Unknown categories go to the end
+      const aOrder = aIndex === -1 ? CATEGORY_ORDER.length : aIndex;
+      const bOrder = bIndex === -1 ? CATEGORY_ORDER.length : bIndex;
+
+      if (aOrder !== bOrder) {
+        return aOrder - bOrder;
+      }
+
+      // Within same category, sort alphabetically by label
+      return a.label.localeCompare(b.label);
+    });
   }
 
   private fuzzyMatch(query: string, text: string): boolean {
@@ -169,28 +223,41 @@ export class CommandPalette {
       return;
     }
 
-    this.filteredCommands.forEach((cmd, index) => {
+    let currentCategory = '';
+    let itemIndex = 0;
+
+    this.filteredCommands.forEach((cmd) => {
+      const category = cmd.category || 'Other';
+
+      // Add category header if new category
+      if (category !== currentCategory) {
+        currentCategory = category;
+        const header = document.createElement('div');
+        header.className = 'command-category-header';
+        header.textContent = category;
+        this.list.appendChild(header);
+      }
+
       const item = document.createElement('div');
-      item.className = `command-item ${index === this.selectedIndex ? 'selected' : ''}`;
+      const thisIndex = itemIndex;
+      item.className = `command-item ${thisIndex === this.selectedIndex ? 'selected' : ''}`;
       item.innerHTML = `
-        <span class="command-label">
-          ${cmd.category ? `<span class="command-category">${cmd.category}:</span>` : ''}
-          ${cmd.label}
-        </span>
+        <span class="command-label">${cmd.label}</span>
         ${cmd.shortcut ? `<span class="command-shortcut">${cmd.shortcut}</span>` : ''}
       `;
 
       item.addEventListener('click', () => {
-        this.selectedIndex = index;
+        this.selectedIndex = thisIndex;
         this.executeSelected();
       });
 
       item.addEventListener('mouseenter', () => {
-        this.selectedIndex = index;
+        this.selectedIndex = thisIndex;
         this.renderList();
       });
 
       this.list.appendChild(item);
+      itemIndex++;
     });
   }
 
