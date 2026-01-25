@@ -448,6 +448,60 @@ class HydraApp {
     }
   }
 
+  private switchToNextProject(): void {
+    const projectIds = Array.from(this.projects.keys());
+    if (projectIds.length === 0) return;
+
+    const currentIndex = this.activeProjectId ? projectIds.indexOf(this.activeProjectId) : -1;
+    const nextIndex = (currentIndex + 1) % projectIds.length;
+    this.switchToProject(projectIds[nextIndex]);
+  }
+
+  private switchToPreviousProject(): void {
+    const projectIds = Array.from(this.projects.keys());
+    if (projectIds.length === 0) return;
+
+    const currentIndex = this.activeProjectId ? projectIds.indexOf(this.activeProjectId) : 0;
+    const prevIndex = (currentIndex - 1 + projectIds.length) % projectIds.length;
+    this.switchToProject(projectIds[prevIndex]);
+  }
+
+  private showProjectSelector(): void {
+    const projects = Array.from(this.projects.values());
+    if (projects.length === 0) return;
+
+    // Register temporary commands for each project
+    const tempCommandIds: string[] = [];
+    projects.forEach((project) => {
+      const cmdId = `project.select.temp.${project.id}`;
+      tempCommandIds.push(cmdId);
+      commandRegistry.register({
+        id: cmdId,
+        label: project.name,
+        category: 'Go to Project',
+        action: () => {
+          this.switchToProject(project.id);
+          // Cleanup after selection
+          tempCommandIds.forEach((id) => commandRegistry.unregister(id));
+        },
+      });
+    });
+
+    // Show command palette with project filter
+    this.commandPalette.show('Go to Project');
+
+    // Cleanup temp commands after a delay (in case palette is closed without selection)
+    setTimeout(() => {
+      tempCommandIds.forEach((id) => {
+        try {
+          commandRegistry.unregister(id);
+        } catch {
+          // Already unregistered
+        }
+      });
+    }, 30000);
+  }
+
   private applyTheme(): void {
     if (!this.settings) return;
 
@@ -703,6 +757,29 @@ class HydraApp {
       category: 'Project',
       action: () => this.createTerminalInActiveProject(),
     });
+
+    commandRegistry.register({
+      id: 'project.next',
+      label: 'Next Project',
+      category: 'Project',
+      shortcut: '⌘⌥]',
+      action: () => this.switchToNextProject(),
+    });
+
+    commandRegistry.register({
+      id: 'project.previous',
+      label: 'Previous Project',
+      category: 'Project',
+      shortcut: '⌘⌥[',
+      action: () => this.switchToPreviousProject(),
+    });
+
+    commandRegistry.register({
+      id: 'project.select',
+      label: 'Go to Project...',
+      category: 'Project',
+      action: () => this.showProjectSelector(),
+    });
   }
 
   private setupEventListeners(): void {
@@ -803,6 +880,20 @@ class HydraApp {
       if (e.metaKey && e.shiftKey && e.key === ']') {
         e.preventDefault();
         this.switchToNextTabInGroup();
+        return;
+      }
+
+      // Cmd+Opt+[ : Previous project
+      if (e.metaKey && e.altKey && e.key === '[') {
+        e.preventDefault();
+        this.switchToPreviousProject();
+        return;
+      }
+
+      // Cmd+Opt+] : Next project
+      if (e.metaKey && e.altKey && e.key === ']') {
+        e.preventDefault();
+        this.switchToNextProject();
         return;
       }
 
