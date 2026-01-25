@@ -67,6 +67,7 @@ export class IdleNotificationManager {
     const state = this.activityStates.get(id);
     if (!state) return;
 
+    // Clear existing timer
     if (state.timer) {
       clearTimeout(state.timer);
       state.timer = null;
@@ -83,7 +84,11 @@ export class IdleNotificationManager {
     }
 
     state.lastActivityTime = Date.now();
-    state.isActive = true;
+
+    // Only start timer if user has executed a command (Enter pressed)
+    if (!state.isActive) {
+      return;
+    }
 
     const timeoutMs = settings.idleNotification.timeoutSeconds * 1000;
     state.timer = setTimeout(() => {
@@ -165,11 +170,24 @@ export class IdleNotificationManager {
   }
 
   markAsActive(id: string): void {
+    const settings = settingsManager.get();
+    if (!settings.idleNotification.enabled) return;
+
     const state = this.activityStates.get(id);
-    if (state) {
-      state.isActive = true;
-      state.notificationSent = false;
+    if (!state) return;
+
+    state.isActive = true;
+    state.notificationSent = false;
+
+    // Start timer when user executes a command
+    if (state.timer) {
+      clearTimeout(state.timer);
     }
+
+    const timeoutMs = settings.idleNotification.timeoutSeconds * 1000;
+    state.timer = setTimeout(() => {
+      this.onIdleTimeout(id);
+    }, timeoutMs);
   }
 
   cleanup(): void {

@@ -929,28 +929,28 @@ class HydraApp {
       }
 
       // Cmd+Shift+[ : Previous tab in same group
-      if (e.metaKey && e.shiftKey && e.key === '[') {
+      if (e.metaKey && e.shiftKey && e.code === 'BracketLeft') {
         e.preventDefault();
         this.switchToPreviousTabInGroup();
         return;
       }
 
       // Cmd+Shift+] : Next tab in same group
-      if (e.metaKey && e.shiftKey && e.key === ']') {
+      if (e.metaKey && e.shiftKey && e.code === 'BracketRight') {
         e.preventDefault();
         this.switchToNextTabInGroup();
         return;
       }
 
       // Cmd+Opt+[ : Previous project
-      if (e.metaKey && e.altKey && e.key === '[') {
+      if (e.metaKey && e.altKey && e.code === 'BracketLeft') {
         e.preventDefault();
         this.switchToPreviousProject();
         return;
       }
 
       // Cmd+Opt+] : Next project
-      if (e.metaKey && e.altKey && e.key === ']') {
+      if (e.metaKey && e.altKey && e.code === 'BracketRight') {
         e.preventDefault();
         this.switchToNextProject();
         return;
