@@ -3,6 +3,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { CommandPalette, commandRegistry, shortcutManager } from './command-palette';
 import { SplitPanelManager, SplitDirection, PanelNode, PanelGroup } from './split-panel';
 import { inputDialog } from './input-dialog';
+import { settingsPanel } from './settings-panel';
 
 interface ProjectSplitState {
   projectId: string | null;
@@ -922,6 +923,44 @@ class HydraApp {
           }
         }
       },
+    });
+
+    commandRegistry.register({
+      id: 'settings.open',
+      label: 'Open Settings',
+      category: 'Settings',
+      shortcut: '⌘,',
+      keybinding: { key: ',', metaKey: true },
+      action: () => this.openSettings(),
+    });
+  }
+
+  private openSettings(): void {
+    if (!this.settings) return;
+
+    settingsPanel.show(this.settings, async (newSettings) => {
+      // Apply theme change
+      if (newSettings.theme !== this.settings?.theme) {
+        this.settings = await window.electronAPI.setTheme(newSettings.theme);
+      }
+
+      // Apply font changes
+      if (newSettings.fontFamily !== this.settings?.fontFamily ||
+          newSettings.fontSize !== this.settings?.fontSize) {
+        this.settings = await window.electronAPI.setFont(newSettings.fontFamily, newSettings.fontSize);
+      }
+
+      // Apply idle notification changes
+      if (newSettings.idleNotification.enabled !== this.settings?.idleNotification?.enabled ||
+          newSettings.idleNotification.timeoutSeconds !== this.settings?.idleNotification?.timeoutSeconds) {
+        this.settings = await window.electronAPI.setIdleNotification(
+          newSettings.idleNotification.enabled,
+          newSettings.idleNotification.timeoutSeconds
+        );
+      }
+
+      this.applyTheme();
+      this.fitAllTerminals();
     });
   }
 
