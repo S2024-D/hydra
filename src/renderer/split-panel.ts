@@ -461,6 +461,49 @@ export class SplitPanelManager {
     }
   }
 
+  // Get all groups in order (left-to-right, top-to-bottom)
+  getAllGroups(): PanelGroup[] {
+    const groups: PanelGroup[] = [];
+    const collectGroups = (node: PanelNode | null): void => {
+      if (!node) return;
+      if (node.type === 'group') {
+        groups.push(node);
+      } else if (node.type === 'split') {
+        collectGroups(node.children[0]);
+        collectGroups(node.children[1]);
+      }
+    };
+    collectGroups(this.root);
+    return groups;
+  }
+
+  // Get the next group in order
+  getNextGroup(currentGroup: PanelGroup): PanelGroup | null {
+    const groups = this.getAllGroups();
+    const currentIndex = groups.indexOf(currentGroup);
+    if (currentIndex === -1 || groups.length <= 1) return null;
+    return groups[(currentIndex + 1) % groups.length];
+  }
+
+  // Get the previous group in order
+  getPreviousGroup(currentGroup: PanelGroup): PanelGroup | null {
+    const groups = this.getAllGroups();
+    const currentIndex = groups.indexOf(currentGroup);
+    if (currentIndex === -1 || groups.length <= 1) return null;
+    return groups[(currentIndex - 1 + groups.length) % groups.length];
+  }
+
+  // Get the active group node
+  getActiveGroup(): PanelGroup | null {
+    return this.activeGroupNode;
+  }
+
+  // Get group by index (0-based)
+  getGroupByIndex(index: number): PanelGroup | null {
+    const groups = this.getAllGroups();
+    return groups[index] || null;
+  }
+
   render(): void {
     // Collect all terminal elements
     const terminalElements = new Map<string, HTMLElement>();

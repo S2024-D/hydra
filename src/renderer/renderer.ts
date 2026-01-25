@@ -84,6 +84,11 @@ interface TerminalInstance {
   element: HTMLElement;
 }
 
+interface MRUEntry {
+  terminalId: string;
+  lastAccessTime: number;
+}
+
 class HydraApp {
   private terminals: Map<string, TerminalInstance> = new Map();
   private projects: Map<string, Project> = new Map();
@@ -96,6 +101,16 @@ class HydraApp {
   private terminalsContainer: HTMLElement;
   private commandPalette: CommandPalette;
   private splitManager: SplitPanelManager;
+
+  // MRU (Most Recently Used) tab tracking
+  private mruList: MRUEntry[] = [];
+  private mruSwitcherVisible: boolean = false;
+  private mruSwitcherIndex: number = 0;
+  private mruSwitcherElement: HTMLElement | null = null;
+
+  // Key sequence state (for Cmd+K combinations)
+  private pendingKeySequence: string | null = null;
+  private keySequenceTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Drag state for panel tabs
   private panelDragState: {
@@ -690,42 +705,341 @@ class HydraApp {
     });
 
     document.addEventListener('keydown', (e) => {
+      // Skip if command palette is open
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'p') {
         return;
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key === 't') {
+      // Handle key sequences (Cmd+K combinations)
+      if (this.pendingKeySequence === 'Cmd+K') {
+        e.preventDefault();
+        this.clearKeySequence();
+
+        if (e.metaKey && e.key === 'ArrowLeft') {
+          // Cmd+K Cmd+Left: Focus previous group
+          this.focusPreviousGroup();
+          return;
+        }
+        if (e.metaKey && e.key === 'ArrowRight') {
+          // Cmd+K Cmd+Right: Focus next group
+          this.focusNextGroup();
+          return;
+        }
+        if (e.key === 'ArrowLeft') {
+          // Cmd+K Left: Move tab to previous group
+          this.moveTerminalToPreviousGroup();
+          return;
+        }
+        if (e.key === 'ArrowRight') {
+          // Cmd+K Right: Move tab to next group
+          this.moveTerminalToNextGroup();
+          return;
+        }
+        return;
+      }
+
+      // Start key sequence with Cmd+K
+      if (e.metaKey && e.key === 'k') {
+        e.preventDefault();
+        this.startKeySequence('Cmd+K');
+        return;
+      }
+
+      // Ctrl+Tab: MRU switcher (next)
+      if (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) {
+        e.preventDefault();
+        if (!this.mruSwitcherVisible) {
+          this.showMRUSwitcher();
+        } else {
+          this.navigateMRUSwitcher('next');
+        }
+        return;
+      }
+
+      // Ctrl+Shift+Tab: MRU switcher (previous)
+      if (e.ctrlKey && e.shiftKey && e.key === 'Tab') {
+        e.preventDefault();
+        if (!this.mruSwitcherVisible) {
+          this.showMRUSwitcher();
+          this.navigateMRUSwitcher('previous');
+        } else {
+          this.navigateMRUSwitcher('previous');
+        }
+        return;
+      }
+
+      // Escape: Cancel MRU switcher
+      if (e.key === 'Escape' && this.mruSwitcherVisible) {
+        e.preventDefault();
+        this.hideMRUSwitcher(false);
+        return;
+      }
+
+      // Cmd+Shift+[ : Previous tab in same group
+      if (e.metaKey && e.shiftKey && e.key === '[') {
+        e.preventDefault();
+        this.switchToPreviousTabInGroup();
+        return;
+      }
+
+      // Cmd+Shift+] : Next tab in same group
+      if (e.metaKey && e.shiftKey && e.key === ']') {
+        e.preventDefault();
+        this.switchToNextTabInGroup();
+        return;
+      }
+
+      // Cmd+T: New terminal
+      if (e.metaKey && e.key === 't') {
         e.preventDefault();
         this.createTerminal();
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'w') {
+
+      // Cmd+W: Close terminal
+      if (e.metaKey && e.key === 'w') {
         e.preventDefault();
         if (this.activeTerminalId) {
           this.closeTerminal(this.activeTerminalId);
         }
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
+
+      // Cmd+1~3: Focus group by index
+      // Cmd+4~9: Focus terminal by index (existing behavior)
+      if (e.metaKey && e.key >= '1' && e.key <= '9') {
         e.preventDefault();
-        const index = parseInt(e.key) - 1;
-        const terminalsForProject = this.getTerminalsForProject(this.activeProjectId);
-        const ids = terminalsForProject.map((t) => t.id);
-        if (ids[index]) {
-          this.focusTerminal(ids[index]);
+        const num = parseInt(e.key);
+        if (num >= 1 && num <= 3) {
+          // Focus group by index (0-indexed)
+          this.focusGroupByIndex(num - 1);
+        } else {
+          // Focus terminal by index (existing behavior for 4-9)
+          const terminalsForProject = this.getTerminalsForProject(this.activeProjectId);
+          const ids = terminalsForProject.map((t) => t.id);
+          const index = num - 1;
+          if (ids[index]) {
+            this.focusTerminal(ids[index]);
+          }
         }
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
+
+      // Cmd+\: Split vertical, Cmd+Shift+\: Split horizontal
+      if (e.metaKey && e.key === '\\') {
         e.preventDefault();
         if (e.shiftKey) {
           this.splitTerminal('horizontal');
         } else {
           this.splitTerminal('vertical');
         }
+        return;
+      }
+    });
+
+    // Ctrl key release: Confirm MRU selection
+    document.addEventListener('keyup', (e) => {
+      if (e.key === 'Control' && this.mruSwitcherVisible) {
+        this.hideMRUSwitcher(true);
       }
     });
 
     document.getElementById('add-project-btn')?.addEventListener('click', () => {
       this.addProject();
     });
+  }
+
+  // MRU Management
+  private updateMRU(terminalId: string): void {
+    // Remove existing entry if present
+    this.mruList = this.mruList.filter(entry => entry.terminalId !== terminalId);
+    // Add to front of list with current timestamp
+    this.mruList.unshift({
+      terminalId,
+      lastAccessTime: Date.now()
+    });
+  }
+
+  private getMRUList(): string[] {
+    // Filter out terminals that no longer exist
+    const validEntries = this.mruList.filter(entry => this.terminals.has(entry.terminalId));
+    this.mruList = validEntries;
+    return validEntries.map(entry => entry.terminalId);
+  }
+
+  private cleanupMRU(terminalId: string): void {
+    this.mruList = this.mruList.filter(entry => entry.terminalId !== terminalId);
+  }
+
+  // MRU Switcher UI
+  private showMRUSwitcher(): void {
+    const mruIds = this.getMRUList();
+    if (mruIds.length <= 1) return;
+
+    this.mruSwitcherVisible = true;
+    this.mruSwitcherIndex = 1; // Start at second item (current is first)
+
+    if (!this.mruSwitcherElement) {
+      this.mruSwitcherElement = document.createElement('div');
+      this.mruSwitcherElement.className = 'mru-switcher-overlay';
+      this.mruSwitcherElement.innerHTML = `
+        <div class="mru-switcher-container">
+          <div class="mru-switcher-title">Switch Terminal</div>
+          <div class="mru-switcher-list"></div>
+        </div>
+      `;
+      document.body.appendChild(this.mruSwitcherElement);
+    }
+
+    this.renderMRUSwitcherList();
+    this.mruSwitcherElement.classList.add('visible');
+  }
+
+  private renderMRUSwitcherList(): void {
+    if (!this.mruSwitcherElement) return;
+
+    const listEl = this.mruSwitcherElement.querySelector('.mru-switcher-list');
+    if (!listEl) return;
+
+    const mruIds = this.getMRUList();
+    listEl.innerHTML = '';
+
+    mruIds.forEach((terminalId, index) => {
+      const terminal = this.terminals.get(terminalId);
+      if (!terminal) return;
+
+      const item = document.createElement('div');
+      item.className = 'mru-switcher-item';
+      if (index === this.mruSwitcherIndex) {
+        item.classList.add('selected');
+      }
+      item.textContent = terminal.name;
+      item.dataset.terminalId = terminalId;
+      listEl.appendChild(item);
+    });
+  }
+
+  private hideMRUSwitcher(selectCurrent: boolean = true): void {
+    if (!this.mruSwitcherVisible) return;
+
+    if (selectCurrent) {
+      const mruIds = this.getMRUList();
+      if (mruIds[this.mruSwitcherIndex]) {
+        this.focusTerminal(mruIds[this.mruSwitcherIndex]);
+      }
+    }
+
+    this.mruSwitcherVisible = false;
+    this.mruSwitcherElement?.classList.remove('visible');
+  }
+
+  private navigateMRUSwitcher(direction: 'next' | 'previous'): void {
+    if (!this.mruSwitcherVisible) return;
+
+    const mruIds = this.getMRUList();
+    if (mruIds.length === 0) return;
+
+    if (direction === 'next') {
+      this.mruSwitcherIndex = (this.mruSwitcherIndex + 1) % mruIds.length;
+    } else {
+      this.mruSwitcherIndex = (this.mruSwitcherIndex - 1 + mruIds.length) % mruIds.length;
+    }
+
+    this.renderMRUSwitcherList();
+  }
+
+  // Group Navigation
+  private switchToNextTabInGroup(): void {
+    const activeGroup = this.splitManager.getActiveGroup();
+    if (!activeGroup || activeGroup.terminalIds.length <= 1) return;
+
+    const currentIndex = activeGroup.terminalIds.indexOf(activeGroup.activeTerminalId);
+    const nextIndex = (currentIndex + 1) % activeGroup.terminalIds.length;
+    const nextTerminalId = activeGroup.terminalIds[nextIndex];
+    this.focusTerminal(nextTerminalId);
+  }
+
+  private switchToPreviousTabInGroup(): void {
+    const activeGroup = this.splitManager.getActiveGroup();
+    if (!activeGroup || activeGroup.terminalIds.length <= 1) return;
+
+    const currentIndex = activeGroup.terminalIds.indexOf(activeGroup.activeTerminalId);
+    const prevIndex = (currentIndex - 1 + activeGroup.terminalIds.length) % activeGroup.terminalIds.length;
+    const prevTerminalId = activeGroup.terminalIds[prevIndex];
+    this.focusTerminal(prevTerminalId);
+  }
+
+  private focusNextGroup(): void {
+    const activeGroup = this.splitManager.getActiveGroup();
+    if (!activeGroup) return;
+
+    const nextGroup = this.splitManager.getNextGroup(activeGroup);
+    if (nextGroup && nextGroup.activeTerminalId) {
+      this.focusTerminal(nextGroup.activeTerminalId);
+    }
+  }
+
+  private focusPreviousGroup(): void {
+    const activeGroup = this.splitManager.getActiveGroup();
+    if (!activeGroup) return;
+
+    const prevGroup = this.splitManager.getPreviousGroup(activeGroup);
+    if (prevGroup && prevGroup.activeTerminalId) {
+      this.focusTerminal(prevGroup.activeTerminalId);
+    }
+  }
+
+  private focusGroupByIndex(index: number): void {
+    const group = this.splitManager.getGroupByIndex(index);
+    if (group && group.activeTerminalId) {
+      this.focusTerminal(group.activeTerminalId);
+    }
+  }
+
+  private moveTerminalToNextGroup(): void {
+    if (!this.activeTerminalId) return;
+    const activeGroup = this.splitManager.getActiveGroup();
+    if (!activeGroup) return;
+
+    const nextGroup = this.splitManager.getNextGroup(activeGroup);
+    if (nextGroup && nextGroup !== activeGroup) {
+      this.splitManager.moveTerminal(this.activeTerminalId, nextGroup.activeTerminalId, 'center');
+      this.focusTerminal(this.activeTerminalId);
+      setTimeout(() => this.fitAllTerminals(), 0);
+    }
+  }
+
+  private moveTerminalToPreviousGroup(): void {
+    if (!this.activeTerminalId) return;
+    const activeGroup = this.splitManager.getActiveGroup();
+    if (!activeGroup) return;
+
+    const prevGroup = this.splitManager.getPreviousGroup(activeGroup);
+    if (prevGroup && prevGroup !== activeGroup) {
+      this.splitManager.moveTerminal(this.activeTerminalId, prevGroup.activeTerminalId, 'center');
+      this.focusTerminal(this.activeTerminalId);
+      setTimeout(() => this.fitAllTerminals(), 0);
+    }
+  }
+
+  // Key Sequence Management
+  private startKeySequence(sequence: string): void {
+    this.pendingKeySequence = sequence;
+    if (this.keySequenceTimeout) {
+      clearTimeout(this.keySequenceTimeout);
+    }
+    this.keySequenceTimeout = setTimeout(() => {
+      this.pendingKeySequence = null;
+      this.keySequenceTimeout = null;
+    }, 1000);
+  }
+
+  private clearKeySequence(): void {
+    this.pendingKeySequence = null;
+    if (this.keySequenceTimeout) {
+      clearTimeout(this.keySequenceTimeout);
+      this.keySequenceTimeout = null;
+    }
   }
 
   private fitAllTerminals(): void {
@@ -949,6 +1263,9 @@ class HydraApp {
 
     this.activeTerminalId = id;
 
+    // Update MRU list
+    this.updateMRU(id);
+
     // Focus in split manager
     this.splitManager.focusTerminal(id);
 
@@ -995,6 +1312,9 @@ class HydraApp {
     if (!instance) return;
 
     const terminalProjectId = instance.projectId;
+
+    // Clean up MRU list
+    this.cleanupMRU(id);
 
     instance.terminal.dispose();
 

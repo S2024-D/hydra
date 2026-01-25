@@ -660,6 +660,70 @@
     body.dragging-active * {
       cursor: grabbing !important;
     }
+
+    /* MRU Switcher Styles */
+    .mru-switcher-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 2000;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 15%;
+    }
+
+    .mru-switcher-overlay.visible {
+      display: flex;
+    }
+
+    .mru-switcher-container {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      min-width: 300px;
+      max-width: 400px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+    }
+
+    .mru-switcher-title {
+      color: var(--text-secondary);
+      font-size: 13px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      font-weight: 500;
+    }
+
+    .mru-switcher-list {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .mru-switcher-item {
+      padding: 10px 16px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+    }
+
+    .mru-switcher-item:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .mru-switcher-item.selected {
+      background: var(--accent-color);
+      color: var(--text-primary);
+    }
+
+    .mru-switcher-item.selected:hover {
+      background: var(--accent-hover);
+    }
   </style>
 </head>
 <body>
