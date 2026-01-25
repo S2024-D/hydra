@@ -4,6 +4,7 @@ import { terminalManager } from './terminal-manager';
 import { projectManager, Project } from './project-manager';
 import { sessionManager, SessionData } from './session-manager';
 import { settingsManager, Settings } from './settings-manager';
+import { idleNotificationManager } from './idle-notification-manager';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -28,6 +29,7 @@ function createWindow(): void {
   });
 
   terminalManager.setMainWindow(mainWindow);
+  idleNotificationManager.setMainWindow(mainWindow);
 }
 
 // IPC handlers for terminal management
@@ -110,6 +112,35 @@ ipcMain.handle('settings:setFont', (_event, fontFamily: string, fontSize: number
   return settingsManager.setFont(fontFamily, fontSize);
 });
 
+// Idle notification settings
+ipcMain.handle('settings:setIdleNotification', (_event, enabled: boolean, timeoutSeconds?: number): Settings => {
+  const current = settingsManager.get();
+  return settingsManager.update({
+    idleNotification: {
+      enabled,
+      timeoutSeconds: timeoutSeconds ?? current.idleNotification.timeoutSeconds,
+    },
+  });
+});
+
+// Active terminal tracking for idle notification
+ipcMain.on('terminal:setActive', (_event, id: string | null) => {
+  idleNotificationManager.setActiveTerminal(id);
+  if (id) {
+    idleNotificationManager.clearAttention(id);
+  }
+});
+
+// Get terminals needing attention
+ipcMain.handle('terminal:getAttentionList', () => {
+  return idleNotificationManager.getAttentionTerminals();
+});
+
+// Update terminal project info for notification
+ipcMain.on('terminal:updateProject', (_event, id: string, projectName: string | null) => {
+  idleNotificationManager.updateTerminalProject(id, projectName);
+});
+
 app.whenReady().then(() => {
   createWindow();
 
@@ -122,6 +153,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   terminalManager.closeAll();
+  idleNotificationManager.cleanup();
   if (process.platform !== 'darwin') {
     app.quit();
   }

@@ -26,11 +26,17 @@ export interface TerminalTheme {
   brightWhite: string;
 }
 
+export interface IdleNotificationSettings {
+  enabled: boolean;
+  timeoutSeconds: number;
+}
+
 export interface Settings {
   theme: 'dark' | 'light';
   fontFamily: string;
   fontSize: number;
   terminalTheme: TerminalTheme;
+  idleNotification: IdleNotificationSettings;
 }
 
 const darkTheme: TerminalTheme = {
@@ -86,6 +92,10 @@ const defaultSettings: Settings = {
   fontFamily: 'Menlo, Monaco, "Courier New", monospace',
   fontSize: 14,
   terminalTheme: darkTheme,
+  idleNotification: {
+    enabled: false,
+    timeoutSeconds: 3,
+  },
 };
 
 class SettingsManager {

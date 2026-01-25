@@ -40,11 +40,17 @@ interface TerminalTheme {
   [key: string]: string;
 }
 
+interface IdleNotificationSettings {
+  enabled: boolean;
+  timeoutSeconds: number;
+}
+
 interface Settings {
   theme: 'dark' | 'light';
   fontFamily: string;
   fontSize: number;
   terminalTheme: TerminalTheme;
+  idleNotification: IdleNotificationSettings;
 }
 
 declare global {
@@ -71,6 +77,12 @@ declare global {
       updateSettings: (settings: Partial<Settings>) => Promise<Settings>;
       setTheme: (theme: 'dark' | 'light') => Promise<Settings>;
       setFont: (fontFamily: string, fontSize: number) => Promise<Settings>;
+      setIdleNotification: (enabled: boolean, timeoutSeconds?: number) => Promise<Settings>;
+      setActiveTerminal: (id: string | null) => void;
+      onTerminalFocus: (callback: (id: string) => void) => void;
+      onAttentionChange: (callback: (terminalIds: string[]) => void) => void;
+      getAttentionList: () => Promise<string[]>;
+      updateTerminalProject: (id: string, projectName: string | null) => void;
     };
   }
 }
@@ -96,6 +108,7 @@ class HydraApp {
   private activeProjectId: string | null = null;
   private settings: Settings | null = null;
   private projectSplitStates: Map<string | null, ProjectSplitState> = new Map();
+  private attentionTerminals: Set<string> = new Set();
 
   private sidebar: HTMLElement;
   private terminalsContainer: HTMLElement;
@@ -133,6 +146,7 @@ class HydraApp {
       onTabDragStart: (terminalId, groupNode, e) => this.handlePanelTabDragStart(terminalId, groupNode, e),
       getTerminalElement: (id) => this.terminals.get(id)?.element || null,
       getTerminalName: (id) => this.terminals.get(id)?.name || `Terminal ${id.slice(0, 6)}`,
+      hasAttention: (id) => this.attentionTerminals.has(id),
     });
 
     this.setupPanelDragListeners();
@@ -357,6 +371,10 @@ class HydraApp {
   private async init(): Promise<void> {
     this.settings = await window.electronAPI.getSettings();
     this.applyTheme();
+
+    // Load initial attention list
+    const attentionList = await window.electronAPI.getAttentionList();
+    this.attentionTerminals = new Set(attentionList);
 
     const session = await window.electronAPI.loadSession();
     if (session && session.terminals.length > 0) {
@@ -780,6 +798,35 @@ class HydraApp {
       category: 'Project',
       action: () => this.showProjectSelector(),
     });
+
+    commandRegistry.register({
+      id: 'settings.idleNotificationToggle',
+      label: 'Toggle Idle Notification',
+      category: 'Settings',
+      action: async () => {
+        const current = this.settings?.idleNotification?.enabled ?? false;
+        this.settings = await window.electronAPI.setIdleNotification(!current);
+      },
+    });
+
+    commandRegistry.register({
+      id: 'settings.idleNotificationTimeout',
+      label: 'Set Idle Notification Timeout',
+      category: 'Settings',
+      action: async () => {
+        const current = this.settings?.idleNotification?.timeoutSeconds ?? 3;
+        const newTimeout = await inputDialog.show('Enter timeout (seconds):', String(current));
+        if (newTimeout) {
+          const seconds = parseInt(newTimeout, 10);
+          if (!isNaN(seconds) && seconds > 0) {
+            this.settings = await window.electronAPI.setIdleNotification(
+              this.settings?.idleNotification?.enabled ?? false,
+              seconds
+            );
+          }
+        }
+      },
+    });
   }
 
   private setupEventListeners(): void {
@@ -792,6 +839,18 @@ class HydraApp {
 
     window.electronAPI.onTerminalClosed((id: string) => {
       this.removeTerminalFromUI(id);
+    });
+
+    // Handle terminal focus from notification click
+    window.electronAPI.onTerminalFocus((id: string) => {
+      this.focusTerminal(id);
+    });
+
+    // Handle attention state changes
+    window.electronAPI.onAttentionChange((terminalIds: string[]) => {
+      this.attentionTerminals = new Set(terminalIds);
+      this.renderSidebar();
+      this.splitManager.render();
     });
 
     window.addEventListener('resize', () => {
@@ -1334,6 +1393,8 @@ class HydraApp {
       if (project) {
         project.terminalIds.push(id);
         window.electronAPI.addTerminalToProject(terminalProjectId, id);
+        // Update project name for notifications
+        window.electronAPI.updateTerminalProject(id, project.name);
       }
     }
 
@@ -1389,6 +1450,9 @@ class HydraApp {
     }
 
     this.activeTerminalId = id;
+
+    // Notify main process about active terminal (for idle notification)
+    window.electronAPI.setActiveTerminal(id);
 
     // Update MRU list
     this.updateMRU(id);
@@ -1516,10 +1580,17 @@ class HydraApp {
     const section = document.createElement('div');
     section.className = `project-section ${this.activeProjectId === projectId ? 'active' : ''}`;
 
+    // Check if any terminal in this project needs attention
+    const hasAttention = terminals.some(t => this.attentionTerminals.has(t.id));
+    if (hasAttention) {
+      section.classList.add('has-attention');
+    }
+
     const header = document.createElement('div');
     header.className = 'project-header';
+    const attentionIcon = hasAttention ? '<span class="attention-indicator">●</span>' : '';
     header.innerHTML = `
-      <span class="project-name">${name}</span>
+      <span class="project-name">${attentionIcon}${name}</span>
       <div class="project-actions">
         ${projectId ? '<button class="project-add-terminal" title="New Terminal">+</button>' : ''}
         ${projectId ? '<button class="project-remove" title="Remove Project">×</button>' : ''}
@@ -1552,10 +1623,21 @@ class HydraApp {
     for (const terminal of terminals) {
       const item = document.createElement('div');
       item.className = `terminal-item ${this.activeTerminalId === terminal.id ? 'active' : ''}`;
+      if (this.attentionTerminals.has(terminal.id)) {
+        item.classList.add('needs-attention');
+      }
 
       const nameSpan = document.createElement('span');
       nameSpan.className = 'terminal-name';
       nameSpan.textContent = terminal.name;
+
+      // Add attention indicator
+      if (this.attentionTerminals.has(terminal.id)) {
+        const indicator = document.createElement('span');
+        indicator.className = 'attention-indicator';
+        indicator.textContent = '●';
+        nameSpan.prepend(indicator);
+      }
 
       const closeBtn = document.createElement('button');
       closeBtn.className = 'terminal-close-btn';

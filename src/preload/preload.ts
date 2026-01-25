@@ -99,4 +99,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setFont: (fontFamily: string, fontSize: number): Promise<any> => {
     return ipcRenderer.invoke('settings:setFont', fontFamily, fontSize);
   },
+
+  // Idle notification APIs
+  setIdleNotification: (enabled: boolean, timeoutSeconds?: number): Promise<any> => {
+    return ipcRenderer.invoke('settings:setIdleNotification', enabled, timeoutSeconds);
+  },
+
+  setActiveTerminal: (id: string | null) => {
+    ipcRenderer.send('terminal:setActive', id);
+  },
+
+  onTerminalFocus: (callback: (id: string) => void) => {
+    ipcRenderer.on('terminal:focus', (_event, id) => {
+      callback(id);
+    });
+  },
+
+  onAttentionChange: (callback: (terminalIds: string[]) => void) => {
+    ipcRenderer.on('terminal:attentionChange', (_event, terminalIds) => {
+      callback(terminalIds);
+    });
+  },
+
+  getAttentionList: (): Promise<string[]> => {
+    return ipcRenderer.invoke('terminal:getAttentionList');
+  },
+
+  updateTerminalProject: (id: string, projectName: string | null) => {
+    ipcRenderer.send('terminal:updateProject', id, projectName);
+  },
 });

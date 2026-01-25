@@ -32,6 +32,7 @@ export interface SplitPanelCallbacks {
   onTabDragStart?: (terminalId: string, groupNode: PanelGroup, e: MouseEvent) => void;
   getTerminalElement: (id: string) => HTMLElement | null;
   getTerminalName: (id: string) => string;
+  hasAttention?: (id: string) => boolean;
 }
 
 export class SplitPanelManager {
@@ -593,9 +594,23 @@ export class SplitPanelManager {
         tab.classList.add('active');
       }
 
+      const hasAttention = this.callbacks.hasAttention?.(terminalId) ?? false;
+      if (hasAttention) {
+        tab.classList.add('needs-attention');
+      }
+
       const tabName = document.createElement('span');
       tabName.className = 'panel-tab-name';
-      tabName.textContent = this.callbacks.getTerminalName(terminalId);
+
+      if (hasAttention) {
+        const indicator = document.createElement('span');
+        indicator.className = 'attention-indicator';
+        indicator.textContent = '●';
+        tabName.appendChild(indicator);
+      }
+
+      const nameText = document.createTextNode(this.callbacks.getTerminalName(terminalId));
+      tabName.appendChild(nameText);
 
       const closeBtn = document.createElement('button');
       closeBtn.className = 'panel-tab-close';

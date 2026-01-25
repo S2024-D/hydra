@@ -765,6 +765,35 @@
     .mru-switcher-item.selected:hover {
       background: var(--accent-hover);
     }
+
+    /* Attention Indicator */
+    .attention-indicator {
+      color: #f5a623;
+      font-size: 10px;
+      margin-right: 4px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .terminal-item.needs-attention .terminal-name {
+      color: #f5a623;
+    }
+
+    .project-section.has-attention .project-name {
+      color: #f5a623;
+    }
+
+    .panel-tab.needs-attention .panel-tab-name {
+      color: #f5a623;
+    }
+
+    .panel-tab.needs-attention {
+      background-color: rgba(245, 166, 35, 0.1);
+    }
   </style>
 </head>
 <body>

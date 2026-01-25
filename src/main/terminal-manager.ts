@@ -1,5 +1,6 @@
 import * as pty from 'node-pty';
 import { BrowserWindow } from 'electron';
+import { idleNotificationManager } from './idle-notification-manager';
 
 export interface TerminalInfo {
   id: string;
@@ -32,6 +33,7 @@ export class TerminalManager {
       if (this.mainWindow) {
         this.mainWindow.webContents.send('terminal:output', id, data);
       }
+      idleNotificationManager.recordActivity(id);
     });
 
     ptyProcess.onExit(({ exitCode }) => {
@@ -49,6 +51,7 @@ export class TerminalManager {
     };
 
     this.terminals.set(id, terminal);
+    idleNotificationManager.registerTerminal(id, terminal.name);
     return id;
   }
 
@@ -56,6 +59,9 @@ export class TerminalManager {
     const terminal = this.terminals.get(id);
     if (terminal) {
       terminal.pty.write(data);
+      if (data.includes('\r') || data.includes('\n')) {
+        idleNotificationManager.markAsActive(id);
+      }
     }
   }
 
@@ -69,6 +75,7 @@ export class TerminalManager {
   closeTerminal(id: string): void {
     const terminal = this.terminals.get(id);
     if (terminal) {
+      idleNotificationManager.unregisterTerminal(id);
       terminal.pty.kill();
       this.terminals.delete(id);
     }
@@ -78,6 +85,7 @@ export class TerminalManager {
     const terminal = this.terminals.get(id);
     if (terminal) {
       terminal.name = name;
+      idleNotificationManager.updateTerminalName(id, name);
     }
   }
 
