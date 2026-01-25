@@ -399,6 +399,11 @@ class HydraApp {
     this.saveCurrentProjectSplitState();
     this.activeProjectId = projectId;
 
+    // Hide ALL terminal elements first
+    this.terminals.forEach((instance) => {
+      instance.element.style.display = 'none';
+    });
+
     const state = this.getOrCreateProjectSplitState(projectId);
     const terminalsForProject = this.getTerminalsForProject(projectId);
 
@@ -410,8 +415,20 @@ class HydraApp {
         this.activeTerminalId = terminalsForProject[0].id;
       }
     } else if (terminalsForProject.length > 0) {
-      this.splitManager.setRoot(terminalsForProject[0].id);
-      this.activeTerminalId = terminalsForProject[0].id;
+      // Build root from all terminals in this project
+      const firstTerminal = terminalsForProject[0];
+      this.splitManager.setRoot(firstTerminal.id);
+      for (let i = 1; i < terminalsForProject.length; i++) {
+        const group = this.splitManager.getRoot();
+        if (group && group.type === 'group') {
+          this.splitManager.addTerminalToGroup(group, terminalsForProject[i].id);
+        }
+      }
+      this.activeTerminalId = firstTerminal.id;
+      // Save this new state
+      const newState = this.getOrCreateProjectSplitState(projectId);
+      newState.rootNode = this.splitManager.getRoot();
+      newState.activeTerminalId = this.activeTerminalId;
     } else {
       this.splitManager.clear();
       this.activeTerminalId = null;
@@ -1231,19 +1248,38 @@ class HydraApp {
 
     this.terminalsContainer.appendChild(instance.element);
 
+    // Handle project switch if needed
     if (terminalProjectId !== this.activeProjectId) {
+      // Save current project state
       this.saveCurrentProjectSplitState();
       this.activeProjectId = terminalProjectId;
+
+      // Load the target project's existing state
+      const targetState = this.getOrCreateProjectSplitState(terminalProjectId);
+      if (targetState.rootNode) {
+        this.splitManager.setRootFromNode(targetState.rootNode);
+      } else {
+        this.splitManager.clear();
+      }
     }
 
-    // Add to existing group or create new root
+    // Add to existing group or create new root for THIS project
     const existingGroup = this.splitManager.getRoot();
     if (existingGroup && existingGroup.type === 'group') {
       this.splitManager.addTerminalToGroup(existingGroup, id);
+    } else if (existingGroup && existingGroup.type === 'split') {
+      // Find the active group in split and add there
+      const activeGroup = this.splitManager.getActiveGroup();
+      if (activeGroup) {
+        this.splitManager.addTerminalToGroup(activeGroup, id);
+      } else {
+        this.splitManager.setRoot(id);
+      }
     } else {
       this.splitManager.setRoot(id);
     }
 
+    // Save the updated state for this project
     const state = this.getOrCreateProjectSplitState(terminalProjectId);
     state.rootNode = this.splitManager.getRoot();
     state.activeTerminalId = id;
