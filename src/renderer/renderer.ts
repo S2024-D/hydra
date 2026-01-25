@@ -1429,7 +1429,10 @@ class HydraApp {
     header.className = 'project-header';
     header.innerHTML = `
       <span class="project-name">${name}</span>
-      ${projectId ? '<button class="project-add-terminal" title="New Terminal">+</button>' : ''}
+      <div class="project-actions">
+        ${projectId ? '<button class="project-add-terminal" title="New Terminal">+</button>' : ''}
+        ${projectId ? '<button class="project-remove" title="Remove Project">×</button>' : ''}
+      </div>
     `;
 
     header.addEventListener('click', () => {
@@ -1443,6 +1446,13 @@ class HydraApp {
       }
     });
 
+    header.querySelector('.project-remove')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (projectId) {
+        this.removeProject(projectId);
+      }
+    });
+
     section.appendChild(header);
 
     const terminalList = document.createElement('div');
@@ -1451,7 +1461,22 @@ class HydraApp {
     for (const terminal of terminals) {
       const item = document.createElement('div');
       item.className = `terminal-item ${this.activeTerminalId === terminal.id ? 'active' : ''}`;
-      item.textContent = terminal.name;
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'terminal-name';
+      nameSpan.textContent = terminal.name;
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'terminal-close-btn';
+      closeBtn.title = 'Close Terminal';
+      closeBtn.textContent = '×';
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.closeTerminal(terminal.id);
+      });
+
+      item.appendChild(nameSpan);
+      item.appendChild(closeBtn);
       item.addEventListener('click', () => {
         this.focusTerminal(terminal.id);
       });

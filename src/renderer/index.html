@@ -123,9 +123,21 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      flex: 1;
     }
 
-    .project-add-terminal {
+    .project-actions {
+      display: flex;
+      gap: 2px;
+      opacity: 0;
+    }
+
+    .project-header:hover .project-actions {
+      opacity: 1;
+    }
+
+    .project-add-terminal,
+    .project-remove {
       background: none;
       border: none;
       color: var(--text-muted);
@@ -133,14 +145,10 @@
       font-size: 14px;
       padding: 0 4px;
       border-radius: 3px;
-      opacity: 0;
     }
 
-    .project-header:hover .project-add-terminal {
-      opacity: 1;
-    }
-
-    .project-add-terminal:hover {
+    .project-add-terminal:hover,
+    .project-remove:hover {
       background-color: var(--bg-tertiary);
       color: var(--text-primary);
     }
@@ -154,9 +162,38 @@
       cursor: pointer;
       color: var(--text-muted);
       font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .terminal-item .terminal-name {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      flex: 1;
+    }
+
+    .terminal-item .terminal-close-btn {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0 4px;
+      margin-left: 4px;
+      border-radius: 3px;
+      line-height: 1;
+    }
+
+    .terminal-item:hover .terminal-close-btn {
+      display: block;
+    }
+
+    .terminal-item .terminal-close-btn:hover {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
     }
 
     .terminal-item:hover {
@@ -166,6 +203,10 @@
 
     .terminal-item.active {
       background-color: var(--accent-color);
+      color: var(--text-primary);
+    }
+
+    .terminal-item.active .terminal-close-btn {
       color: var(--text-primary);
     }
 
