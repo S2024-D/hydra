@@ -1,8 +1,19 @@
+export interface KeyBinding {
+  key: string;
+  metaKey?: boolean;
+  ctrlKey?: boolean;
+  altKey?: boolean;
+  shiftKey?: boolean;
+  // For key sequences like Cmd+K, Cmd+Left
+  sequence?: KeyBinding;
+}
+
 export interface Command {
   id: string;
   label: string;
   category?: string;
-  shortcut?: string;
+  shortcut?: string;  // Display string (e.g., '⌘T')
+  keybinding?: KeyBinding;  // Actual keybinding
   action: () => void | Promise<void>;
 }
 
@@ -238,3 +249,158 @@ export class CommandPalette {
     }
   }
 }
+
+// Keyboard shortcut manager for centralized keybinding handling
+export class KeyboardShortcutManager {
+  private pendingSequence: KeyBinding | null = null;
+  private sequenceTimeout: ReturnType<typeof setTimeout> | null = null;
+  private customHandlers: Map<string, (e: KeyboardEvent) => boolean> = new Map();
+
+  constructor() {
+    this.setupGlobalListener();
+  }
+
+  private setupGlobalListener(): void {
+    document.addEventListener('keydown', (e) => this.handleKeyDown(e), true);
+  }
+
+  // Register custom handler for special cases (MRU switcher, etc.)
+  // Handler should return true if it handled the event
+  registerCustomHandler(id: string, handler: (e: KeyboardEvent) => boolean): void {
+    this.customHandlers.set(id, handler);
+  }
+
+  unregisterCustomHandler(id: string): void {
+    this.customHandlers.delete(id);
+  }
+
+  private handleKeyDown(e: KeyboardEvent): void {
+    // Skip if focused on input elements (except for specific shortcuts)
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      // Only allow Escape and command palette shortcut
+      if (e.key !== 'Escape' && !((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'p')) {
+        return;
+      }
+    }
+
+    // Let custom handlers try first
+    for (const handler of this.customHandlers.values()) {
+      if (handler(e)) {
+        return;
+      }
+    }
+
+    // Handle pending key sequence
+    if (this.pendingSequence) {
+      e.preventDefault();
+      const commands = commandRegistry.getAll();
+
+      for (const cmd of commands) {
+        if (cmd.keybinding?.sequence && this.matchesBinding(e, cmd.keybinding.sequence)) {
+          // Check if the first part matches our pending sequence
+          const firstPart: KeyBinding = { ...cmd.keybinding };
+          delete firstPart.sequence;
+          if (this.bindingsEqual(this.pendingSequence, firstPart)) {
+            this.clearSequence();
+            cmd.action();
+            return;
+          }
+        }
+      }
+
+      this.clearSequence();
+      return;
+    }
+
+    // Check for sequence starters (commands with sequence that start with this key)
+    const commands = commandRegistry.getAll();
+    for (const cmd of commands) {
+      if (cmd.keybinding?.sequence) {
+        const firstPart: KeyBinding = { ...cmd.keybinding };
+        delete firstPart.sequence;
+        if (this.matchesBinding(e, firstPart)) {
+          e.preventDefault();
+          this.startSequence(firstPart);
+          return;
+        }
+      }
+    }
+
+    // Check for direct keybindings
+    for (const cmd of commands) {
+      if (cmd.keybinding && !cmd.keybinding.sequence && this.matchesBinding(e, cmd.keybinding)) {
+        e.preventDefault();
+        cmd.action();
+        return;
+      }
+    }
+  }
+
+  private matchesBinding(e: KeyboardEvent, binding: KeyBinding): boolean {
+    const keyMatches = e.key.toLowerCase() === binding.key.toLowerCase() ||
+                       e.code === binding.key;
+
+    return keyMatches &&
+           !!e.metaKey === !!binding.metaKey &&
+           !!e.ctrlKey === !!binding.ctrlKey &&
+           !!e.altKey === !!binding.altKey &&
+           !!e.shiftKey === !!binding.shiftKey;
+  }
+
+  private bindingsEqual(a: KeyBinding, b: KeyBinding): boolean {
+    return a.key.toLowerCase() === b.key.toLowerCase() &&
+           !!a.metaKey === !!b.metaKey &&
+           !!a.ctrlKey === !!b.ctrlKey &&
+           !!a.altKey === !!b.altKey &&
+           !!a.shiftKey === !!b.shiftKey;
+  }
+
+  private startSequence(binding: KeyBinding): void {
+    this.pendingSequence = binding;
+    if (this.sequenceTimeout) {
+      clearTimeout(this.sequenceTimeout);
+    }
+    this.sequenceTimeout = setTimeout(() => {
+      this.clearSequence();
+    }, 1000);
+  }
+
+  private clearSequence(): void {
+    this.pendingSequence = null;
+    if (this.sequenceTimeout) {
+      clearTimeout(this.sequenceTimeout);
+      this.sequenceTimeout = null;
+    }
+  }
+
+  // Helper to create keybinding from shortcut string
+  static parseShortcut(shortcut: string): KeyBinding {
+    const binding: KeyBinding = { key: '' };
+
+    // Parse modifier symbols
+    if (shortcut.includes('⌘') || shortcut.includes('Cmd')) {
+      binding.metaKey = true;
+      shortcut = shortcut.replace(/⌘|Cmd\+?/g, '');
+    }
+    if (shortcut.includes('⌃') || shortcut.includes('Ctrl')) {
+      binding.ctrlKey = true;
+      shortcut = shortcut.replace(/⌃|Ctrl\+?/g, '');
+    }
+    if (shortcut.includes('⌥') || shortcut.includes('Alt') || shortcut.includes('Opt')) {
+      binding.altKey = true;
+      shortcut = shortcut.replace(/⌥|Alt\+?|Opt\+?/g, '');
+    }
+    if (shortcut.includes('⇧') || shortcut.includes('Shift')) {
+      binding.shiftKey = true;
+      shortcut = shortcut.replace(/⇧|Shift\+?/g, '');
+    }
+
+    // Remaining is the key
+    binding.key = shortcut.trim() || shortcut;
+
+    return binding;
+  }
+}
+
+export const shortcutManager = new KeyboardShortcutManager();

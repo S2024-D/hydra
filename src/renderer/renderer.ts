@@ -1,6 +1,6 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { CommandPalette, commandRegistry } from './command-palette';
+import { CommandPalette, commandRegistry, shortcutManager } from './command-palette';
 import { SplitPanelManager, SplitDirection, PanelNode, PanelGroup } from './split-panel';
 import { inputDialog } from './input-dialog';
 
@@ -120,10 +120,6 @@ class HydraApp {
   private mruSwitcherVisible: boolean = false;
   private mruSwitcherIndex: number = 0;
   private mruSwitcherElement: HTMLElement | null = null;
-
-  // Key sequence state (for Cmd+K combinations)
-  private pendingKeySequence: string | null = null;
-  private keySequenceTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Drag state for panel tabs
   private panelDragState: {
@@ -659,11 +655,13 @@ class HydraApp {
   }
 
   private registerCommands(): void {
+    // ===== Terminal Commands =====
     commandRegistry.register({
       id: 'terminal.new',
       label: 'New Terminal',
       category: 'Terminal',
       shortcut: '⌘T',
+      keybinding: { key: 't', metaKey: true },
       action: () => this.createTerminal(),
     });
 
@@ -672,6 +670,7 @@ class HydraApp {
       label: 'Close Terminal',
       category: 'Terminal',
       shortcut: '⌘W',
+      keybinding: { key: 'w', metaKey: true },
       action: () => {
         if (this.activeTerminalId) {
           this.closeTerminal(this.activeTerminalId);
@@ -694,25 +693,11 @@ class HydraApp {
     });
 
     commandRegistry.register({
-      id: 'terminal.splitVertical',
-      label: 'Split Terminal Right',
-      category: 'Terminal',
-      shortcut: '⌘\\',
-      action: () => this.splitTerminal('vertical'),
-    });
-
-    commandRegistry.register({
-      id: 'terminal.splitHorizontal',
-      label: 'Split Terminal Down',
-      category: 'Terminal',
-      shortcut: '⌘⇧\\',
-      action: () => this.splitTerminal('horizontal'),
-    });
-
-    commandRegistry.register({
       id: 'terminal.rename',
       label: 'Rename Terminal',
       category: 'Terminal',
+      shortcut: '⌘R',
+      keybinding: { key: 'r', metaKey: true },
       action: () => this.renameActiveTerminal(),
     });
 
@@ -720,37 +705,113 @@ class HydraApp {
       id: 'terminal.search',
       label: 'Search Terminals',
       category: 'Terminal',
+      shortcut: '⌘P',
+      keybinding: { key: 'p', metaKey: true },
       action: () => this.showTerminalSearch(),
     });
 
+    // ===== Panel Commands =====
     commandRegistry.register({
-      id: 'settings.themeDark',
-      label: 'Dark Theme',
-      category: 'Settings',
-      action: () => this.setTheme('dark'),
+      id: 'panel.splitRight',
+      label: 'Split Right',
+      category: 'Panel',
+      shortcut: '⌘\\',
+      keybinding: { key: '\\', metaKey: true },
+      action: () => this.splitTerminal('vertical'),
     });
 
     commandRegistry.register({
-      id: 'settings.themeLight',
-      label: 'Light Theme',
-      category: 'Settings',
-      action: () => this.setTheme('light'),
+      id: 'panel.splitDown',
+      label: 'Split Down',
+      category: 'Panel',
+      shortcut: '⌘⇧\\',
+      keybinding: { key: '\\', metaKey: true, shiftKey: true },
+      action: () => this.splitTerminal('horizontal'),
     });
 
     commandRegistry.register({
-      id: 'settings.fontSizeIncrease',
-      label: 'Increase Font Size',
-      category: 'Settings',
-      action: () => this.changeFontSize(1),
+      id: 'panel.focusNext',
+      label: 'Focus Next Panel',
+      category: 'Panel',
+      shortcut: '⌘K ⌘→',
+      keybinding: { key: 'k', metaKey: true, sequence: { key: 'ArrowRight', metaKey: true } },
+      action: () => this.focusNextGroup(),
     });
 
     commandRegistry.register({
-      id: 'settings.fontSizeDecrease',
-      label: 'Decrease Font Size',
-      category: 'Settings',
-      action: () => this.changeFontSize(-1),
+      id: 'panel.focusPrevious',
+      label: 'Focus Previous Panel',
+      category: 'Panel',
+      shortcut: '⌘K ⌘←',
+      keybinding: { key: 'k', metaKey: true, sequence: { key: 'ArrowLeft', metaKey: true } },
+      action: () => this.focusPreviousGroup(),
     });
 
+    commandRegistry.register({
+      id: 'panel.moveTabNext',
+      label: 'Move Tab to Next Panel',
+      category: 'Panel',
+      shortcut: '⌘K →',
+      keybinding: { key: 'k', metaKey: true, sequence: { key: 'ArrowRight' } },
+      action: () => this.moveTerminalToNextGroup(),
+    });
+
+    commandRegistry.register({
+      id: 'panel.moveTabPrevious',
+      label: 'Move Tab to Previous Panel',
+      category: 'Panel',
+      shortcut: '⌘K ←',
+      keybinding: { key: 'k', metaKey: true, sequence: { key: 'ArrowLeft' } },
+      action: () => this.moveTerminalToPreviousGroup(),
+    });
+
+    commandRegistry.register({
+      id: 'panel.focusGroup1',
+      label: 'Focus Panel 1',
+      category: 'Panel',
+      shortcut: '⌘1',
+      keybinding: { key: '1', metaKey: true },
+      action: () => this.focusGroupByIndex(0),
+    });
+
+    commandRegistry.register({
+      id: 'panel.focusGroup2',
+      label: 'Focus Panel 2',
+      category: 'Panel',
+      shortcut: '⌘2',
+      keybinding: { key: '2', metaKey: true },
+      action: () => this.focusGroupByIndex(1),
+    });
+
+    commandRegistry.register({
+      id: 'panel.focusGroup3',
+      label: 'Focus Panel 3',
+      category: 'Panel',
+      shortcut: '⌘3',
+      keybinding: { key: '3', metaKey: true },
+      action: () => this.focusGroupByIndex(2),
+    });
+
+    // ===== Navigation Commands =====
+    commandRegistry.register({
+      id: 'navigation.nextTabInGroup',
+      label: 'Next Tab in Panel',
+      category: 'Navigation',
+      shortcut: '⌘⇧]',
+      keybinding: { key: 'BracketRight', metaKey: true, shiftKey: true },
+      action: () => this.switchToNextTabInGroup(),
+    });
+
+    commandRegistry.register({
+      id: 'navigation.previousTabInGroup',
+      label: 'Previous Tab in Panel',
+      category: 'Navigation',
+      shortcut: '⌘⇧[',
+      keybinding: { key: 'BracketLeft', metaKey: true, shiftKey: true },
+      action: () => this.switchToPreviousTabInGroup(),
+    });
+
+    // ===== Project Commands =====
     commandRegistry.register({
       id: 'project.add',
       label: 'Add Project',
@@ -781,6 +842,7 @@ class HydraApp {
       label: 'Next Project',
       category: 'Project',
       shortcut: '⌘⌥]',
+      keybinding: { key: 'BracketRight', metaKey: true, altKey: true },
       action: () => this.switchToNextProject(),
     });
 
@@ -789,6 +851,7 @@ class HydraApp {
       label: 'Previous Project',
       category: 'Project',
       shortcut: '⌘⌥[',
+      keybinding: { key: 'BracketLeft', metaKey: true, altKey: true },
       action: () => this.switchToPreviousProject(),
     });
 
@@ -797,6 +860,39 @@ class HydraApp {
       label: 'Go to Project...',
       category: 'Project',
       action: () => this.showProjectSelector(),
+    });
+
+    // ===== Settings Commands =====
+    commandRegistry.register({
+      id: 'settings.themeDark',
+      label: 'Dark Theme',
+      category: 'Settings',
+      action: () => this.setTheme('dark'),
+    });
+
+    commandRegistry.register({
+      id: 'settings.themeLight',
+      label: 'Light Theme',
+      category: 'Settings',
+      action: () => this.setTheme('light'),
+    });
+
+    commandRegistry.register({
+      id: 'settings.fontSizeIncrease',
+      label: 'Increase Font Size',
+      category: 'Settings',
+      shortcut: '⌘+',
+      keybinding: { key: '=', metaKey: true },
+      action: () => this.changeFontSize(1),
+    });
+
+    commandRegistry.register({
+      id: 'settings.fontSizeDecrease',
+      label: 'Decrease Font Size',
+      category: 'Settings',
+      shortcut: '⌘-',
+      keybinding: { key: '-', metaKey: true },
+      action: () => this.changeFontSize(-1),
     });
 
     commandRegistry.register({
@@ -857,47 +953,8 @@ class HydraApp {
       this.fitAllTerminals();
     });
 
-    document.addEventListener('keydown', (e) => {
-      // Skip if command palette is open
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'p') {
-        return;
-      }
-
-      // Handle key sequences (Cmd+K combinations)
-      if (this.pendingKeySequence === 'Cmd+K') {
-        e.preventDefault();
-        this.clearKeySequence();
-
-        if (e.metaKey && e.key === 'ArrowLeft') {
-          // Cmd+K Cmd+Left: Focus previous group
-          this.focusPreviousGroup();
-          return;
-        }
-        if (e.metaKey && e.key === 'ArrowRight') {
-          // Cmd+K Cmd+Right: Focus next group
-          this.focusNextGroup();
-          return;
-        }
-        if (e.key === 'ArrowLeft') {
-          // Cmd+K Left: Move tab to previous group
-          this.moveTerminalToPreviousGroup();
-          return;
-        }
-        if (e.key === 'ArrowRight') {
-          // Cmd+K Right: Move tab to next group
-          this.moveTerminalToNextGroup();
-          return;
-        }
-        return;
-      }
-
-      // Start key sequence with Cmd+K
-      if (e.metaKey && e.key === 'k') {
-        e.preventDefault();
-        this.startKeySequence('Cmd+K');
-        return;
-      }
-
+    // Register MRU switcher as custom handler (needs special state management)
+    shortcutManager.registerCustomHandler('mru-switcher', (e: KeyboardEvent) => {
       // Ctrl+Tab: MRU switcher (next)
       if (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) {
         e.preventDefault();
@@ -906,7 +963,7 @@ class HydraApp {
         } else {
           this.navigateMRUSwitcher('next');
         }
-        return;
+        return true;
       }
 
       // Ctrl+Shift+Tab: MRU switcher (previous)
@@ -918,90 +975,17 @@ class HydraApp {
         } else {
           this.navigateMRUSwitcher('previous');
         }
-        return;
+        return true;
       }
 
       // Escape: Cancel MRU switcher
       if (e.key === 'Escape' && this.mruSwitcherVisible) {
         e.preventDefault();
         this.hideMRUSwitcher(false);
-        return;
+        return true;
       }
 
-      // Cmd+Shift+[ : Previous tab in same group
-      if (e.metaKey && e.shiftKey && e.code === 'BracketLeft') {
-        e.preventDefault();
-        this.switchToPreviousTabInGroup();
-        return;
-      }
-
-      // Cmd+Shift+] : Next tab in same group
-      if (e.metaKey && e.shiftKey && e.code === 'BracketRight') {
-        e.preventDefault();
-        this.switchToNextTabInGroup();
-        return;
-      }
-
-      // Cmd+Opt+[ : Previous project
-      if (e.metaKey && e.altKey && e.code === 'BracketLeft') {
-        e.preventDefault();
-        this.switchToPreviousProject();
-        return;
-      }
-
-      // Cmd+Opt+] : Next project
-      if (e.metaKey && e.altKey && e.code === 'BracketRight') {
-        e.preventDefault();
-        this.switchToNextProject();
-        return;
-      }
-
-      // Cmd+T: New terminal
-      if (e.metaKey && e.key === 't') {
-        e.preventDefault();
-        this.createTerminal();
-        return;
-      }
-
-      // Cmd+W: Close terminal
-      if (e.metaKey && e.key === 'w') {
-        e.preventDefault();
-        if (this.activeTerminalId) {
-          this.closeTerminal(this.activeTerminalId);
-        }
-        return;
-      }
-
-      // Cmd+1~3: Focus group by index
-      // Cmd+4~9: Focus terminal by index (existing behavior)
-      if (e.metaKey && e.key >= '1' && e.key <= '9') {
-        e.preventDefault();
-        const num = parseInt(e.key);
-        if (num >= 1 && num <= 3) {
-          // Focus group by index (0-indexed)
-          this.focusGroupByIndex(num - 1);
-        } else {
-          // Focus terminal by index (existing behavior for 4-9)
-          const terminalsForProject = this.getTerminalsForProject(this.activeProjectId);
-          const ids = terminalsForProject.map((t) => t.id);
-          const index = num - 1;
-          if (ids[index]) {
-            this.focusTerminal(ids[index]);
-          }
-        }
-        return;
-      }
-
-      // Cmd+\: Split vertical, Cmd+Shift+\: Split horizontal
-      if (e.metaKey && e.key === '\\') {
-        e.preventDefault();
-        if (e.shiftKey) {
-          this.splitTerminal('horizontal');
-        } else {
-          this.splitTerminal('vertical');
-        }
-        return;
-      }
+      return false;
     });
 
     // Ctrl key release: Confirm MRU selection
@@ -1186,26 +1170,6 @@ class HydraApp {
       this.splitManager.moveTerminal(this.activeTerminalId, prevGroup.activeTerminalId, 'center');
       this.focusTerminal(this.activeTerminalId);
       setTimeout(() => this.fitAllTerminals(), 0);
-    }
-  }
-
-  // Key Sequence Management
-  private startKeySequence(sequence: string): void {
-    this.pendingKeySequence = sequence;
-    if (this.keySequenceTimeout) {
-      clearTimeout(this.keySequenceTimeout);
-    }
-    this.keySequenceTimeout = setTimeout(() => {
-      this.pendingKeySequence = null;
-      this.keySequenceTimeout = null;
-    }, 1000);
-  }
-
-  private clearKeySequence(): void {
-    this.pendingKeySequence = null;
-    if (this.keySequenceTimeout) {
-      clearTimeout(this.keySequenceTimeout);
-      this.keySequenceTimeout = null;
     }
   }
 
