@@ -6,6 +6,7 @@ import { inputDialog } from './input-dialog';
 import { settingsPanel } from './settings-panel';
 import { terminalSearch } from './terminal-search';
 import { snippetManager } from './snippets';
+import { attachmentPanel } from './attachment-panel';
 
 interface ProjectSplitState {
   projectId: string | null;
@@ -86,6 +87,14 @@ declare global {
       onAttentionChange: (callback: (terminalIds: string[]) => void) => void;
       getAttentionList: () => Promise<string[]>;
       updateTerminalProject: (id: string, projectName: string | null) => void;
+      // Attachment APIs
+      selectImage: () => Promise<{ filePath: string } | null>;
+      addAttachment: (filePath: string, title?: string, linkedProjectId?: string) => Promise<any>;
+      removeAttachment: (id: string) => Promise<boolean>;
+      updateAttachment: (id: string, updates: { title?: string; linkedProjectId?: string }) => Promise<any>;
+      getAttachments: () => Promise<any[]>;
+      checkFileExists: (filePath: string) => Promise<boolean>;
+      readImageAsBase64: (filePath: string) => Promise<string | null>;
     };
   }
 }
@@ -954,6 +963,15 @@ class HydraApp {
       keybinding: { key: ';', metaKey: true },
       action: () => this.showSnippets(),
     });
+
+    commandRegistry.register({
+      id: 'view.attachments',
+      label: 'Image Attachments',
+      category: 'View',
+      shortcut: '⌘I',
+      keybinding: { key: 'i', metaKey: true },
+      action: () => this.showAttachments(),
+    });
   }
 
   private showTerminalSearchBar(): void {
@@ -976,6 +994,10 @@ class HydraApp {
         instance.terminal.focus();
       }
     });
+  }
+
+  private showAttachments(): void {
+    attachmentPanel.toggle();
   }
 
   private openSettings(): void {

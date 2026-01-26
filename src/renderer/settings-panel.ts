@@ -140,6 +140,10 @@ export class SettingsPanel {
                 <span class="shortcut-label">Focus Panel 1/2/3</span>
                 <span class="shortcut-key">&#8984;1/2/3</span>
               </div>
+              <div class="shortcut-item">
+                <span class="shortcut-label">Image Attachments</span>
+                <span class="shortcut-key">&#8984;I</span>
+              </div>
             </div>
           </div>
         </div>
