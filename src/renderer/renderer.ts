@@ -4,6 +4,8 @@ import { CommandPalette, commandRegistry, shortcutManager } from './command-pale
 import { SplitPanelManager, SplitDirection, PanelNode, PanelGroup } from './split-panel';
 import { inputDialog } from './input-dialog';
 import { settingsPanel } from './settings-panel';
+import { terminalSearch } from './terminal-search';
+import { snippetManager } from './snippets';
 
 interface ProjectSplitState {
   projectId: string | null;
@@ -933,6 +935,47 @@ class HydraApp {
       keybinding: { key: ',', metaKey: true },
       action: () => this.openSettings(),
     });
+
+    // ===== View Commands =====
+    commandRegistry.register({
+      id: 'view.search',
+      label: 'Find in Terminal',
+      category: 'View',
+      shortcut: '⌘F',
+      keybinding: { key: 'f', metaKey: true },
+      action: () => this.showTerminalSearchBar(),
+    });
+
+    commandRegistry.register({
+      id: 'view.snippets',
+      label: 'Quick Commands',
+      category: 'View',
+      shortcut: '⌘;',
+      keybinding: { key: ';', metaKey: true },
+      action: () => this.showSnippets(),
+    });
+  }
+
+  private showTerminalSearchBar(): void {
+    if (!this.activeTerminalId) return;
+    const instance = this.terminals.get(this.activeTerminalId);
+    if (!instance) return;
+
+    terminalSearch.show(instance.terminal, () => {
+      instance.terminal.focus();
+    });
+  }
+
+  private showSnippets(): void {
+    if (!this.activeTerminalId) return;
+
+    snippetManager.show((command) => {
+      const instance = this.terminals.get(this.activeTerminalId!);
+      if (instance) {
+        window.electronAPI.sendInput(this.activeTerminalId!, command + '\n');
+        instance.terminal.focus();
+      }
+    });
   }
 
   private openSettings(): void {
@@ -1381,7 +1424,8 @@ class HydraApp {
   }
 
   async createTerminal(name?: string, cwd?: string, projectId?: string | null): Promise<void> {
-    const terminalProjectId = projectId !== undefined ? projectId : null;
+    // Use activeProjectId if projectId is not explicitly provided
+    const terminalProjectId = projectId !== undefined ? projectId : this.activeProjectId;
     const id = await window.electronAPI.createTerminal(name, cwd);
     const instance = this.createTerminalInstance(
       id,
