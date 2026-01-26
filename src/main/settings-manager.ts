@@ -89,7 +89,7 @@ const lightTheme: TerminalTheme = {
 
 const defaultSettings: Settings = {
   theme: 'dark',
-  fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+  fontFamily: 'Menlo, "Apple SD Gothic Neo", Monaco, "Malgun Gothic", monospace',
   fontSize: 14,
   terminalTheme: darkTheme,
   idleNotification: {

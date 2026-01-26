@@ -26,7 +26,11 @@ export class TerminalManager {
       cols: 80,
       rows: 24,
       cwd: cwd || process.env.HOME,
-      env: process.env as { [key: string]: string },
+      env: {
+        ...process.env,
+        LANG: process.env.LANG || 'en_US.UTF-8',
+        LC_ALL: process.env.LC_ALL || 'en_US.UTF-8',
+      } as { [key: string]: string },
     });
 
     ptyProcess.onData((data: string) => {
