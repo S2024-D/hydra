@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 export interface Project {
   id: string;
@@ -127,5 +127,39 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   updateTerminalProject: (id: string, projectName: string | null) => {
     ipcRenderer.send('terminal:updateProject', id, projectName);
+  },
+
+  // Attachment APIs
+  selectImage: (): Promise<{ filePath: string } | null> => {
+    return ipcRenderer.invoke('attachment:selectImage');
+  },
+
+  addAttachment: (filePath: string, title?: string, linkedProjectId?: string): Promise<any> => {
+    return ipcRenderer.invoke('attachment:add', filePath, title, linkedProjectId);
+  },
+
+  removeAttachment: (id: string): Promise<boolean> => {
+    return ipcRenderer.invoke('attachment:remove', id);
+  },
+
+  updateAttachment: (id: string, updates: { title?: string; linkedProjectId?: string }): Promise<any> => {
+    return ipcRenderer.invoke('attachment:update', id, updates);
+  },
+
+  getAttachments: (): Promise<any[]> => {
+    return ipcRenderer.invoke('attachment:list');
+  },
+
+  checkFileExists: (filePath: string): Promise<boolean> => {
+    return ipcRenderer.invoke('attachment:checkFileExists', filePath);
+  },
+
+  readImageAsBase64: (filePath: string): Promise<string | null> => {
+    return ipcRenderer.invoke('attachment:readImageAsBase64', filePath);
+  },
+
+  // File drag & drop helper
+  getPathForFile: (file: File): string => {
+    return webUtils.getPathForFile(file);
   },
 });

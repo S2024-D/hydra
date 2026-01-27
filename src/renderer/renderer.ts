@@ -6,6 +6,7 @@ import { inputDialog } from './input-dialog';
 import { settingsPanel } from './settings-panel';
 import { terminalSearch } from './terminal-search';
 import { snippetManager } from './snippets';
+import { attachmentPanel } from './attachment-panel';
 
 interface ProjectSplitState {
   projectId: string | null;
@@ -86,6 +87,15 @@ declare global {
       onAttentionChange: (callback: (terminalIds: string[]) => void) => void;
       getAttentionList: () => Promise<string[]>;
       updateTerminalProject: (id: string, projectName: string | null) => void;
+      // Attachment APIs
+      selectImage: () => Promise<{ filePath: string } | null>;
+      addAttachment: (filePath: string, title?: string, linkedProjectId?: string) => Promise<any>;
+      removeAttachment: (id: string) => Promise<boolean>;
+      updateAttachment: (id: string, updates: { title?: string; linkedProjectId?: string }) => Promise<any>;
+      getAttachments: () => Promise<any[]>;
+      checkFileExists: (filePath: string) => Promise<boolean>;
+      readImageAsBase64: (filePath: string) => Promise<string | null>;
+      getPathForFile: (file: File) => string;
     };
   }
 }
@@ -954,6 +964,15 @@ class HydraApp {
       keybinding: { key: ';', metaKey: true },
       action: () => this.showSnippets(),
     });
+
+    commandRegistry.register({
+      id: 'view.attachments',
+      label: 'Image Attachments',
+      category: 'View',
+      shortcut: '⌘I',
+      keybinding: { key: 'i', metaKey: true },
+      action: () => this.showAttachments(),
+    });
   }
 
   private showTerminalSearchBar(): void {
@@ -976,6 +995,10 @@ class HydraApp {
         instance.terminal.focus();
       }
     });
+  }
+
+  private showAttachments(): void {
+    attachmentPanel.toggle();
   }
 
   private openSettings(): void {
@@ -1418,6 +1441,43 @@ class HydraApp {
 
     terminal.onData((data: string) => {
       window.electronAPI.sendInput(id, data);
+    });
+
+    // File drag and drop support
+    element.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      element.classList.add('drag-over');
+    });
+
+    element.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      element.classList.remove('drag-over');
+    });
+
+    element.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      element.classList.remove('drag-over');
+
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        const paths: string[] = [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const filePath = window.electronAPI.getPathForFile(file);
+          if (filePath) {
+            // Escape spaces in path
+            const escapedPath = filePath.includes(' ') ? `"${filePath}"` : filePath;
+            paths.push(escapedPath);
+          }
+        }
+        if (paths.length > 0) {
+          window.electronAPI.sendInput(id, paths.join(' '));
+          terminal.focus();
+        }
+      }
     });
 
     return { id, name, projectId, terminal, fitAddon, element };

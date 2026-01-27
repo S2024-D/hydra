@@ -1,10 +1,11 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import * as path from 'path';
 import { terminalManager } from './terminal-manager';
 import { projectManager, Project } from './project-manager';
 import { sessionManager, SessionData } from './session-manager';
 import { settingsManager, Settings } from './settings-manager';
 import { idleNotificationManager } from './idle-notification-manager';
+import { attachmentManager, Attachment } from './attachment-manager';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -139,6 +140,46 @@ ipcMain.handle('terminal:getAttentionList', () => {
 // Update terminal project info for notification
 ipcMain.on('terminal:updateProject', (_event, id: string, projectName: string | null) => {
   idleNotificationManager.updateTerminalProject(id, projectName);
+});
+
+// Attachment management
+ipcMain.handle('attachment:selectImage', async (): Promise<{ filePath: string } | null> => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [
+      { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'] },
+    ],
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  return { filePath: result.filePaths[0] };
+});
+
+ipcMain.handle('attachment:add', (_event, filePath: string, title?: string, linkedProjectId?: string): Attachment => {
+  return attachmentManager.addAttachment(filePath, title, linkedProjectId);
+});
+
+ipcMain.handle('attachment:remove', (_event, id: string): boolean => {
+  return attachmentManager.removeAttachment(id);
+});
+
+ipcMain.handle('attachment:update', (_event, id: string, updates: { title?: string; linkedProjectId?: string }): Attachment | null => {
+  return attachmentManager.updateAttachment(id, updates);
+});
+
+ipcMain.handle('attachment:list', (): Attachment[] => {
+  return attachmentManager.getAttachments();
+});
+
+ipcMain.handle('attachment:checkFileExists', (_event, filePath: string): boolean => {
+  return attachmentManager.checkFileExists(filePath);
+});
+
+ipcMain.handle('attachment:readImageAsBase64', (_event, filePath: string): string | null => {
+  return attachmentManager.readImageAsBase64(filePath);
 });
 
 app.whenReady().then(() => {

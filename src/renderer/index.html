@@ -356,6 +356,12 @@
       height: 100%;
     }
 
+    .terminal-wrapper.drag-over {
+      outline: 2px dashed var(--accent-hover);
+      outline-offset: -2px;
+      background-color: rgba(0, 122, 204, 0.1);
+    }
+
     /* Command Palette */
     .command-palette {
       display: none;
@@ -1261,6 +1267,342 @@
       color: var(--text-muted);
       background: var(--bg-tertiary);
       border-top: 1px solid var(--border-color);
+    }
+
+    /* Attachment Panel */
+    .attachment-panel {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 2000;
+    }
+
+    .attachment-panel.visible {
+      display: block;
+    }
+
+    .attachment-panel-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    .attachment-panel-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 700px;
+      max-width: 90%;
+      max-height: 80vh;
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .attachment-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .attachment-panel-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .attachment-panel-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .attachment-add-btn {
+      background: var(--accent-hover);
+      border: none;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .attachment-add-btn:hover {
+      background: var(--accent-color);
+    }
+
+    .attachment-panel-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .attachment-panel-close:hover {
+      color: var(--text-primary);
+    }
+
+    .attachment-drop-zone {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .attachment-drop-overlay {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 122, 204, 0.2);
+      border: 2px dashed var(--accent-hover);
+      border-radius: 8px;
+      margin: 10px;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    .attachment-drop-overlay span {
+      font-size: 18px;
+      color: var(--accent-hover);
+      font-weight: 600;
+    }
+
+    .attachment-drop-zone.drag-over .attachment-drop-overlay {
+      display: flex;
+    }
+
+    .attachment-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 16px;
+      padding: 20px;
+      overflow-y: auto;
+      max-height: calc(80vh - 120px);
+    }
+
+    .attachment-empty {
+      grid-column: 1 / -1;
+      padding: 40px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .attachment-item {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.2s;
+      position: relative;
+    }
+
+    .attachment-item:hover {
+      border-color: var(--accent-hover);
+      transform: translateY(-2px);
+    }
+
+    .attachment-item.missing {
+      opacity: 0.7;
+      cursor: default;
+    }
+
+    .attachment-item.missing:hover {
+      transform: none;
+    }
+
+    .attachment-thumbnail {
+      width: 100%;
+      height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-primary);
+      overflow: hidden;
+    }
+
+    .attachment-thumbnail img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .attachment-missing-icon {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+    }
+
+    .attachment-missing-icon .warning-icon {
+      font-size: 24px;
+      color: #f5a623;
+      background: rgba(245, 166, 35, 0.2);
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .attachment-missing-icon .missing-text {
+      font-size: 12px;
+    }
+
+    .attachment-info {
+      padding: 10px;
+    }
+
+    .attachment-title {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+
+    .attachment-path {
+      display: block;
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .attachment-actions {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .attachment-item:hover .attachment-actions {
+      opacity: 1;
+    }
+
+    .attachment-edit-btn,
+    .attachment-delete-btn {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .attachment-edit-btn:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+      color: white;
+    }
+
+    .attachment-delete-btn:hover {
+      background: #c53030;
+      border-color: #c53030;
+      color: white;
+    }
+
+    .attachment-hint {
+      padding: 8px 16px;
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg-tertiary);
+      border-top: 1px solid var(--border-color);
+      text-align: center;
+    }
+
+    /* Attachment Image Modal */
+    .attachment-image-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 3000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .attachment-image-modal-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+    }
+
+    .attachment-image-modal-content {
+      position: relative;
+      max-width: 90vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .attachment-image-modal-content img {
+      max-width: 100%;
+      max-height: calc(90vh - 50px);
+      object-fit: contain;
+      border-radius: 4px;
+    }
+
+    .attachment-image-modal-title {
+      color: var(--text-primary);
+      font-size: 14px;
+      margin-top: 12px;
+      background: var(--bg-secondary);
+      padding: 8px 16px;
+      border-radius: 4px;
+    }
+
+    .attachment-image-modal-close {
+      position: absolute;
+      top: -40px;
+      right: 0;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 32px;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .attachment-image-modal-close:hover {
+      color: var(--accent-hover);
     }
   </style>
 </head>
