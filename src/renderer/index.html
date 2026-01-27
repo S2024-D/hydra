@@ -356,6 +356,12 @@
       height: 100%;
     }
 
+    .terminal-wrapper.drag-over {
+      outline: 2px dashed var(--accent-hover);
+      outline-offset: -2px;
+      background-color: rgba(0, 122, 204, 0.1);
+    }
+
     /* Command Palette */
     .command-palette {
       display: none;
@@ -1350,6 +1356,38 @@
 
     .attachment-panel-close:hover {
       color: var(--text-primary);
+    }
+
+    .attachment-drop-zone {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .attachment-drop-overlay {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 122, 204, 0.2);
+      border: 2px dashed var(--accent-hover);
+      border-radius: 8px;
+      margin: 10px;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    .attachment-drop-overlay span {
+      font-size: 18px;
+      color: var(--accent-hover);
+      font-weight: 600;
+    }
+
+    .attachment-drop-zone.drag-over .attachment-drop-overlay {
+      display: flex;
     }
 
     .attachment-grid {

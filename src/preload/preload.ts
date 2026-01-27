@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 export interface Project {
   id: string;
@@ -156,5 +156,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   readImageAsBase64: (filePath: string): Promise<string | null> => {
     return ipcRenderer.invoke('attachment:readImageAsBase64', filePath);
+  },
+
+  // File drag & drop helper
+  getPathForFile: (file: File): string => {
+    return webUtils.getPathForFile(file);
   },
 });

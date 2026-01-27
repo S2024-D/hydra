@@ -37,8 +37,13 @@ class AttachmentPanel {
             <button class="attachment-panel-close">&times;</button>
           </div>
         </div>
-        <div class="attachment-grid"></div>
-        <div class="attachment-hint">Click to view | Hover for actions | Delete removes from list only</div>
+        <div class="attachment-drop-zone">
+          <div class="attachment-grid"></div>
+          <div class="attachment-drop-overlay">
+            <span>Drop images here</span>
+          </div>
+        </div>
+        <div class="attachment-hint">Click to view | Hover for actions | Drag & drop to add | Delete removes from list only</div>
       </div>
     `;
     return panel;
@@ -55,6 +60,42 @@ class AttachmentPanel {
 
     this.element.querySelector('.attachment-add-btn')?.addEventListener('click', () => {
       this.addImageFromDialog();
+    });
+
+    // Drag and drop support
+    const dropZone = this.element.querySelector('.attachment-drop-zone') as HTMLElement;
+
+    dropZone?.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.add('drag-over');
+    });
+
+    dropZone?.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove('drag-over');
+    });
+
+    dropZone?.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove('drag-over');
+
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          // Check if it's an image file
+          if (file.type.startsWith('image/')) {
+            const filePath = window.electronAPI.getPathForFile(file);
+            if (filePath) {
+              await window.electronAPI.addAttachment(filePath);
+            }
+          }
+        }
+        await this.loadAttachments();
+      }
     });
 
     document.addEventListener('keydown', (e) => {

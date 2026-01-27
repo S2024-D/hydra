@@ -95,6 +95,7 @@ declare global {
       getAttachments: () => Promise<any[]>;
       checkFileExists: (filePath: string) => Promise<boolean>;
       readImageAsBase64: (filePath: string) => Promise<string | null>;
+      getPathForFile: (file: File) => string;
     };
   }
 }
@@ -1440,6 +1441,43 @@ class HydraApp {
 
     terminal.onData((data: string) => {
       window.electronAPI.sendInput(id, data);
+    });
+
+    // File drag and drop support
+    element.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      element.classList.add('drag-over');
+    });
+
+    element.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      element.classList.remove('drag-over');
+    });
+
+    element.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      element.classList.remove('drag-over');
+
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        const paths: string[] = [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const filePath = window.electronAPI.getPathForFile(file);
+          if (filePath) {
+            // Escape spaces in path
+            const escapedPath = filePath.includes(' ') ? `"${filePath}"` : filePath;
+            paths.push(escapedPath);
+          }
+        }
+        if (paths.length > 0) {
+          window.electronAPI.sendInput(id, paths.join(' '));
+          terminal.focus();
+        }
+      }
     });
 
     return { id, name, projectId, terminal, fitAddon, element };

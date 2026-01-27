@@ -8,7 +8,7 @@ interface SearchMatch {
 
 export class TerminalSearch {
   private element: HTMLElement;
-  private input: HTMLInputElement;
+  private input!: HTMLInputElement;
   private isVisible = false;
   private terminal: Terminal | null = null;
   private matches: SearchMatch[] = [];
