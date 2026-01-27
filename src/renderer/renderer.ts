@@ -1439,6 +1439,15 @@ class HydraApp {
 
     terminal.open(element);
 
+    // KeyboardShortcutManager가 window capture phase에서 먼저 처리하므로
+    // 안전을 위한 기본 체크만 유지
+    terminal.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+      if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 'p') {
+        return false;
+      }
+      return true;
+    });
+
     terminal.onData((data: string) => {
       window.electronAPI.sendInput(id, data);
     });
