@@ -1,7 +1,7 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { CommandPalette, commandRegistry, shortcutManager } from './command-palette';
-import { SplitPanelManager, SplitDirection, PanelNode, PanelGroup } from './split-panel';
+import { SplitPanelManager, SplitDirection, PanelNode, PanelGroup, ViewMode } from './split-panel';
 import { inputDialog } from './input-dialog';
 import { settingsPanel } from './settings-panel';
 import { terminalSearch } from './terminal-search';
@@ -12,6 +12,8 @@ interface ProjectSplitState {
   projectId: string | null;
   rootNode: PanelNode | null;
   activeTerminalId: string | null;
+  viewMode?: ViewMode;
+  savedSingleViewRoot?: PanelNode | null;
 }
 
 interface Project {
@@ -25,6 +27,8 @@ interface SerializedProjectSplitState {
   projectId: string | null;
   rootNode: PanelNode | null;
   activeTerminalId: string | null;
+  viewMode?: ViewMode;
+  savedSingleViewRoot?: PanelNode | null;
 }
 
 interface SessionData {
@@ -418,6 +422,8 @@ class HydraApp {
     const state = this.getOrCreateProjectSplitState(this.activeProjectId);
     state.rootNode = this.splitManager.getRoot();
     state.activeTerminalId = this.activeTerminalId;
+    state.viewMode = this.splitManager.getViewMode();
+    state.savedSingleViewRoot = this.splitManager.getSavedSingleViewRoot();
   }
 
   private switchToProject(projectId: string | null): void {
@@ -436,6 +442,11 @@ class HydraApp {
 
     if (state.rootNode) {
       this.splitManager.setRootFromNode(state.rootNode);
+      // Restore view mode state
+      this.splitManager.restoreViewModeState(
+        state.viewMode || 'single',
+        state.savedSingleViewRoot || null
+      );
       if (state.activeTerminalId && this.terminals.has(state.activeTerminalId)) {
         this.activeTerminalId = state.activeTerminalId;
       } else if (terminalsForProject.length > 0) {
@@ -603,11 +614,16 @@ class HydraApp {
         const updatedActiveId = savedState.activeTerminalId
           ? idMapping.get(savedState.activeTerminalId) || null
           : null;
+        const updatedSavedSingleViewRoot = savedState.savedSingleViewRoot
+          ? updateNodeIds(savedState.savedSingleViewRoot)
+          : null;
 
         this.projectSplitStates.set(savedState.projectId, {
           projectId: savedState.projectId,
           rootNode: updatedRootNode,
           activeTerminalId: updatedActiveId,
+          viewMode: savedState.viewMode,
+          savedSingleViewRoot: updatedSavedSingleViewRoot,
         });
       }
     }
@@ -617,6 +633,11 @@ class HydraApp {
     const state = this.projectSplitStates.get(this.activeProjectId);
     if (state && state.rootNode) {
       this.splitManager.setRootFromNode(state.rootNode);
+      // Restore view mode state
+      this.splitManager.restoreViewModeState(
+        state.viewMode || 'single',
+        state.savedSingleViewRoot || null
+      );
       this.activeTerminalId = state.activeTerminalId;
     } else {
       const terminalsForProject = this.getTerminalsForProject(this.activeProjectId);
@@ -654,6 +675,8 @@ class HydraApp {
       projectId: state.projectId,
       rootNode: state.rootNode,
       activeTerminalId: state.activeTerminalId,
+      viewMode: state.viewMode,
+      savedSingleViewRoot: state.savedSingleViewRoot,
     }));
 
     const sessionData: SessionData = {
@@ -973,6 +996,29 @@ class HydraApp {
       keybinding: { key: 'i', metaKey: true },
       action: () => this.showAttachments(),
     });
+
+    commandRegistry.register({
+      id: 'view.toggleMultiView',
+      label: 'Toggle Multi/Single View',
+      category: 'View',
+      shortcut: '⌘⇧M',
+      keybinding: { key: 'm', metaKey: true, shiftKey: true },
+      action: () => this.toggleViewMode(),
+    });
+
+    commandRegistry.register({
+      id: 'view.singleView',
+      label: 'Single View (Tabs)',
+      category: 'View',
+      action: () => this.setViewMode('single'),
+    });
+
+    commandRegistry.register({
+      id: 'view.multiView',
+      label: 'Multi View (Split)',
+      category: 'View',
+      action: () => this.setViewMode('multi'),
+    });
   }
 
   private showTerminalSearchBar(): void {
@@ -999,6 +1045,22 @@ class HydraApp {
 
   private showAttachments(): void {
     attachmentPanel.toggle();
+  }
+
+  private toggleViewMode(): void {
+    this.splitManager.toggleViewMode();
+    this.saveCurrentProjectSplitState();
+    setTimeout(() => this.fitAllTerminals(), 0);
+  }
+
+  private setViewMode(mode: ViewMode): void {
+    if (mode === 'single') {
+      this.splitManager.switchToSingleView();
+    } else {
+      this.splitManager.switchToMultiView();
+    }
+    this.saveCurrentProjectSplitState();
+    setTimeout(() => this.fitAllTerminals(), 0);
   }
 
   private openSettings(): void {
@@ -1207,7 +1269,16 @@ class HydraApp {
   // Group Navigation
   private switchToNextTabInGroup(): void {
     const activeGroup = this.splitManager.getActiveGroup();
-    if (!activeGroup || activeGroup.terminalIds.length <= 1) return;
+    if (!activeGroup) return;
+
+    // In multi-view mode with single tab per group, move to next group
+    if (activeGroup.terminalIds.length <= 1) {
+      if (this.splitManager.getViewMode() === 'multi') {
+        this.focusNextGroup();
+        return;
+      }
+      return;
+    }
 
     const currentIndex = activeGroup.terminalIds.indexOf(activeGroup.activeTerminalId);
     const nextIndex = (currentIndex + 1) % activeGroup.terminalIds.length;
@@ -1217,7 +1288,16 @@ class HydraApp {
 
   private switchToPreviousTabInGroup(): void {
     const activeGroup = this.splitManager.getActiveGroup();
-    if (!activeGroup || activeGroup.terminalIds.length <= 1) return;
+    if (!activeGroup) return;
+
+    // In multi-view mode with single tab per group, move to previous group
+    if (activeGroup.terminalIds.length <= 1) {
+      if (this.splitManager.getViewMode() === 'multi') {
+        this.focusPreviousGroup();
+        return;
+      }
+      return;
+    }
 
     const currentIndex = activeGroup.terminalIds.indexOf(activeGroup.activeTerminalId);
     const prevIndex = (currentIndex - 1 + activeGroup.terminalIds.length) % activeGroup.terminalIds.length;
