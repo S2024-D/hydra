@@ -10,7 +10,33 @@
     "copy:html": "cp src/renderer/index.html dist/renderer/",
     "start": "npm run build && npm run copy:html && electron .",
     "dev": "npm run build && npm run copy:html && electron .",
-    "rebuild": "npx @electron/rebuild"
+    "rebuild": "npx @electron/rebuild",
+    "dist": "npm run build && npm run copy:html && electron-builder",
+    "dist:mac": "npm run build && npm run copy:html && electron-builder --mac",
+    "dist:win": "npm run build && npm run copy:html && electron-builder --win",
+    "dist:linux": "npm run build && npm run copy:html && electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.hydra.terminal",
+    "productName": "Hydra",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": ["dmg", "zip"]
+    },
+    "win": {
+      "target": ["nsis", "portable"]
+    },
+    "linux": {
+      "target": ["AppImage", "deb"]
+    }
   },
   "keywords": [
     "terminal",
@@ -22,6 +48,7 @@
   "devDependencies": {
     "@electron/rebuild": "^4.0.2",
     "electron": "^40.0.0",
+    "electron-builder": "^26.4.0",
     "esbuild": "^0.27.2",
     "typescript": "^5.9.3"
   },
