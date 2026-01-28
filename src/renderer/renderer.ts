@@ -985,8 +985,8 @@ class HydraApp {
       id: 'settings.mcpServers',
       label: 'MCP Server Settings',
       category: 'Settings',
-      shortcut: '⌘⇧M',
-      keybinding: { key: 'm', metaKey: true, shiftKey: true },
+      shortcut: '⌘⇧,',
+      keybinding: { key: ',', metaKey: true, shiftKey: true },
       action: () => this.showMCPSettings(),
     });
   }

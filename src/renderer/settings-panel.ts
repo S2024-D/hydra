@@ -162,7 +162,7 @@ export class SettingsPanel {
               </div>
               <div class="shortcut-item">
                 <span class="shortcut-label">MCP Server Settings</span>
-                <span class="shortcut-key">&#8984;&#8679;M</span>
+                <span class="shortcut-key">&#8984;&#8679;,</span>
               </div>
             </div>
           </div>
