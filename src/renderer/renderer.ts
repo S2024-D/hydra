@@ -1114,6 +1114,17 @@ class HydraApp {
       this.attentionTerminals = new Set(terminalIds);
       this.renderSidebar();
       this.splitManager.render();
+
+      // Restore focus to active terminal after re-rendering
+      // (render() removes and re-adds DOM elements, causing focus loss)
+      if (this.activeTerminalId) {
+        const instance = this.terminals.get(this.activeTerminalId);
+        if (instance) {
+          setTimeout(() => {
+            instance.terminal.focus();
+          }, 0);
+        }
+      }
     });
 
     window.addEventListener('resize', () => {
