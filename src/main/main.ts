@@ -6,6 +6,7 @@ import { sessionManager, SessionData } from './session-manager';
 import { settingsManager, Settings } from './settings-manager';
 import { idleNotificationManager } from './idle-notification-manager';
 import { attachmentManager, Attachment } from './attachment-manager';
+import { mcpManager, MCPServerTemplate } from './mcp-manager';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -180,6 +181,31 @@ ipcMain.handle('attachment:checkFileExists', (_event, filePath: string): boolean
 
 ipcMain.handle('attachment:readImageAsBase64', (_event, filePath: string): string | null => {
   return attachmentManager.readImageAsBase64(filePath);
+});
+
+// MCP Server management
+ipcMain.handle('mcp:getServers', (): MCPServerTemplate[] => {
+  return mcpManager.getServers();
+});
+
+ipcMain.handle('mcp:addServer', (_event, server: Omit<MCPServerTemplate, 'id'>): MCPServerTemplate => {
+  return mcpManager.addServer(server);
+});
+
+ipcMain.handle('mcp:updateServer', (_event, id: string, updates: Partial<Omit<MCPServerTemplate, 'id'>>): MCPServerTemplate | null => {
+  return mcpManager.updateServer(id, updates);
+});
+
+ipcMain.handle('mcp:removeServer', (_event, id: string): boolean => {
+  return mcpManager.removeServer(id);
+});
+
+ipcMain.handle('mcp:toggleServer', (_event, id: string): MCPServerTemplate | null => {
+  return mcpManager.toggleServer(id);
+});
+
+ipcMain.handle('mcp:getTemplates', () => {
+  return mcpManager.getTemplates();
 });
 
 app.whenReady().then(() => {

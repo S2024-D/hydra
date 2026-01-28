@@ -7,6 +7,7 @@ import { settingsPanel } from './settings-panel';
 import { terminalSearch } from './terminal-search';
 import { snippetManager } from './snippets';
 import { attachmentPanel } from './attachment-panel';
+import { mcpSettings } from './mcp-settings';
 
 interface ProjectSplitState {
   projectId: string | null;
@@ -95,6 +96,13 @@ declare global {
       getAttachments: () => Promise<any[]>;
       checkFileExists: (filePath: string) => Promise<boolean>;
       readImageAsBase64: (filePath: string) => Promise<string | null>;
+      // MCP Server APIs
+      mcpGetServers: () => Promise<any[]>;
+      mcpAddServer: (server: any) => Promise<any>;
+      mcpUpdateServer: (id: string, updates: any) => Promise<any>;
+      mcpRemoveServer: (id: string) => Promise<boolean>;
+      mcpToggleServer: (id: string) => Promise<any>;
+      mcpGetTemplates: () => Promise<any>;
     };
   }
 }
@@ -972,6 +980,15 @@ class HydraApp {
       keybinding: { key: 'i', metaKey: true },
       action: () => this.showAttachments(),
     });
+
+    commandRegistry.register({
+      id: 'settings.mcpServers',
+      label: 'MCP Server Settings',
+      category: 'Settings',
+      shortcut: '⌘⇧M',
+      keybinding: { key: 'm', metaKey: true, shiftKey: true },
+      action: () => this.showMCPSettings(),
+    });
   }
 
   private showTerminalSearchBar(): void {
@@ -998,6 +1015,10 @@ class HydraApp {
 
   private showAttachments(): void {
     attachmentPanel.toggle();
+  }
+
+  private showMCPSettings(): void {
+    mcpSettings.toggle();
   }
 
   private openSettings(): void {

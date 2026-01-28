@@ -157,4 +157,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readImageAsBase64: (filePath: string): Promise<string | null> => {
     return ipcRenderer.invoke('attachment:readImageAsBase64', filePath);
   },
+
+  // MCP Server APIs
+  mcpGetServers: (): Promise<any[]> => {
+    return ipcRenderer.invoke('mcp:getServers');
+  },
+
+  mcpAddServer: (server: any): Promise<any> => {
+    return ipcRenderer.invoke('mcp:addServer', server);
+  },
+
+  mcpUpdateServer: (id: string, updates: any): Promise<any> => {
+    return ipcRenderer.invoke('mcp:updateServer', id, updates);
+  },
+
+  mcpRemoveServer: (id: string): Promise<boolean> => {
+    return ipcRenderer.invoke('mcp:removeServer', id);
+  },
+
+  mcpToggleServer: (id: string): Promise<any> => {
+    return ipcRenderer.invoke('mcp:toggleServer', id);
+  },
+
+  mcpGetTemplates: (): Promise<any> => {
+    return ipcRenderer.invoke('mcp:getTemplates');
+  },
 });
