@@ -194,4 +194,45 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mcpAddServerFromSchema: (schema: any, settings: Record<string, any>): Promise<any> => {
     return ipcRenderer.invoke('mcp:addServerFromSchema', schema, settings);
   },
+
+  // Orchestrator APIs
+  orchestratorGetAgents: (): Promise<any[]> => {
+    return ipcRenderer.invoke('orchestrator:getAgents');
+  },
+
+  orchestratorGetWorkflows: (): Promise<any[]> => {
+    return ipcRenderer.invoke('orchestrator:getWorkflows');
+  },
+
+  orchestratorGetWorkflow: (id: string): Promise<any | null> => {
+    return ipcRenderer.invoke('orchestrator:getWorkflow', id);
+  },
+
+  orchestratorCreateWorkflow: (task: string, includeDesignReview: boolean): Promise<any> => {
+    return ipcRenderer.invoke('orchestrator:createWorkflow', task, includeDesignReview);
+  },
+
+  orchestratorRunStep: (workflowId: string): Promise<any | null> => {
+    return ipcRenderer.invoke('orchestrator:runStep', workflowId);
+  },
+
+  orchestratorRunAllSteps: (workflowId: string): Promise<any | null> => {
+    return ipcRenderer.invoke('orchestrator:runAllSteps', workflowId);
+  },
+
+  orchestratorApproveWorkflow: (workflowId: string): Promise<any | null> => {
+    return ipcRenderer.invoke('orchestrator:approveWorkflow', workflowId);
+  },
+
+  orchestratorRejectWorkflow: (workflowId: string, feedback: string): Promise<any | null> => {
+    return ipcRenderer.invoke('orchestrator:rejectWorkflow', workflowId, feedback);
+  },
+
+  orchestratorDeleteWorkflow: (workflowId: string): Promise<boolean> => {
+    return ipcRenderer.invoke('orchestrator:deleteWorkflow', workflowId);
+  },
+
+  orchestratorResetWorkflow: (workflowId: string): Promise<any | null> => {
+    return ipcRenderer.invoke('orchestrator:resetWorkflow', workflowId);
+  },
 });

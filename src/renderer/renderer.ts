@@ -8,6 +8,7 @@ import { terminalSearch } from './terminal-search';
 import { snippetManager } from './snippets';
 import { attachmentPanel } from './attachment-panel';
 import { mcpSettings } from './mcp-settings';
+import { orchestratorPanel } from './orchestrator-panel';
 
 interface ProjectSplitState {
   projectId: string | null;
@@ -103,6 +104,17 @@ declare global {
       mcpRemoveServer: (id: string) => Promise<boolean>;
       mcpToggleServer: (id: string) => Promise<any>;
       mcpGetTemplates: () => Promise<any>;
+      // Orchestrator APIs
+      orchestratorGetAgents: () => Promise<any[]>;
+      orchestratorGetWorkflows: () => Promise<any[]>;
+      orchestratorGetWorkflow: (id: string) => Promise<any | null>;
+      orchestratorCreateWorkflow: (task: string, includeDesignReview: boolean) => Promise<any>;
+      orchestratorRunStep: (workflowId: string) => Promise<any | null>;
+      orchestratorRunAllSteps: (workflowId: string) => Promise<any | null>;
+      orchestratorApproveWorkflow: (workflowId: string) => Promise<any | null>;
+      orchestratorRejectWorkflow: (workflowId: string, feedback: string) => Promise<any | null>;
+      orchestratorDeleteWorkflow: (workflowId: string) => Promise<boolean>;
+      orchestratorResetWorkflow: (workflowId: string) => Promise<any | null>;
     };
   }
 }
@@ -989,6 +1001,15 @@ class HydraApp {
       keybinding: { key: ',', metaKey: true, shiftKey: true },
       action: () => this.showMCPSettings(),
     });
+
+    commandRegistry.register({
+      id: 'view.orchestrator',
+      label: 'Agent Orchestrator',
+      category: 'View',
+      shortcut: '⌘⇧O',
+      keybinding: { key: 'o', metaKey: true, shiftKey: true },
+      action: () => this.showOrchestrator(),
+    });
   }
 
   private showTerminalSearchBar(): void {
@@ -1019,6 +1040,10 @@ class HydraApp {
 
   private showMCPSettings(): void {
     mcpSettings.toggle();
+  }
+
+  private showOrchestrator(): void {
+    orchestratorPanel.toggle();
   }
 
   private openSettings(): void {

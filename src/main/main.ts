@@ -7,6 +7,7 @@ import { settingsManager, Settings } from './settings-manager';
 import { idleNotificationManager } from './idle-notification-manager';
 import { attachmentManager, Attachment } from './attachment-manager';
 import { mcpManager, MCPServerTemplate, MCPServerSchema } from './mcp-manager';
+import { orchestratorManager, AgentRole, WorkflowConfig } from './orchestrator-manager';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -229,6 +230,47 @@ ipcMain.handle('mcp:importSchemaFromFile', async (): Promise<MCPServerSchema | n
 
 ipcMain.handle('mcp:addServerFromSchema', (_event, schema: MCPServerSchema, settings: Record<string, unknown>): MCPServerTemplate => {
   return mcpManager.addServerFromSchema(schema, settings);
+});
+
+// Orchestrator management
+ipcMain.handle('orchestrator:getAgents', (): AgentRole[] => {
+  return orchestratorManager.getAgents();
+});
+
+ipcMain.handle('orchestrator:getWorkflows', (): WorkflowConfig[] => {
+  return orchestratorManager.getWorkflows();
+});
+
+ipcMain.handle('orchestrator:getWorkflow', (_event, id: string): WorkflowConfig | null => {
+  return orchestratorManager.getWorkflow(id);
+});
+
+ipcMain.handle('orchestrator:createWorkflow', (_event, task: string, includeDesignReview: boolean): WorkflowConfig => {
+  return orchestratorManager.createWorkflow(task, includeDesignReview);
+});
+
+ipcMain.handle('orchestrator:runStep', async (_event, workflowId: string): Promise<WorkflowConfig | null> => {
+  return orchestratorManager.runStep(workflowId);
+});
+
+ipcMain.handle('orchestrator:runAllSteps', async (_event, workflowId: string): Promise<WorkflowConfig | null> => {
+  return orchestratorManager.runAllSteps(workflowId);
+});
+
+ipcMain.handle('orchestrator:approveWorkflow', (_event, workflowId: string): WorkflowConfig | null => {
+  return orchestratorManager.approveWorkflow(workflowId);
+});
+
+ipcMain.handle('orchestrator:rejectWorkflow', (_event, workflowId: string, feedback: string): WorkflowConfig | null => {
+  return orchestratorManager.rejectWorkflow(workflowId, feedback);
+});
+
+ipcMain.handle('orchestrator:deleteWorkflow', (_event, workflowId: string): boolean => {
+  return orchestratorManager.deleteWorkflow(workflowId);
+});
+
+ipcMain.handle('orchestrator:resetWorkflow', (_event, workflowId: string): WorkflowConfig | null => {
+  return orchestratorManager.resetWorkflow(workflowId);
 });
 
 app.whenReady().then(() => {
