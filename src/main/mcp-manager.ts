@@ -2,10 +2,32 @@ import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// MCP Server Schema Types (for dynamic import)
+export interface MCPFieldDefinition {
+  key: string;
+  label: string;
+  type: 'text' | 'password' | 'textarea' | 'checkbox' | 'number';
+  placeholder?: string;
+  required?: boolean;
+  default?: string | boolean | number;
+  helpText?: string;
+  helpUrl?: string;
+}
+
+export interface MCPServerSchema {
+  name: string;
+  description?: string;
+  icon?: string;
+  command: string;
+  args: string[];
+  fields: MCPFieldDefinition[];
+  envMapping: Record<string, string>;
+}
+
 // MCP Server Template Types
 export interface MCPServerTemplate {
   id: string;
-  type: 'jira' | 'github' | 'filesystem' | 'postgres' | 'custom';
+  type: 'jira' | 'github' | 'filesystem' | 'postgres' | 'custom' | 'imported';
   name: string;
   enabled: boolean;
 
@@ -25,6 +47,9 @@ export interface MCPServerTemplate {
 
     // PostgreSQL
     connectionString?: string;
+
+    // For imported servers - dynamic settings
+    [key: string]: string | boolean | number | string[] | undefined;
   };
 
   // For custom servers
@@ -33,6 +58,9 @@ export interface MCPServerTemplate {
     args: string[];
     env: Record<string, string>;
   };
+
+  // For imported servers
+  importedSchema?: MCPServerSchema;
 }
 
 export interface MCPConfig {
@@ -221,6 +249,27 @@ class MCPManager {
       };
     }
 
+    // Handle imported servers
+    if (server.type === 'imported') {
+      if (!server.importedSchema) return null;
+      const schema = server.importedSchema;
+      const env: Record<string, string> = {};
+
+      // Map settings to environment variables using envMapping
+      for (const [fieldKey, envVar] of Object.entries(schema.envMapping)) {
+        const value = server.settings?.[fieldKey];
+        if (value !== undefined && value !== null && value !== '') {
+          env[envVar] = String(value);
+        }
+      }
+
+      return {
+        command: schema.command,
+        args: [...schema.args],
+        env,
+      };
+    }
+
     const template = MCP_TEMPLATES[server.type];
     if (!template) return null;
 
@@ -249,6 +298,98 @@ class MCPManager {
   // Get template definitions for UI
   getTemplates(): Record<string, MCPTemplateDefinition> {
     return MCP_TEMPLATES;
+  }
+
+  // Validate schema format
+  validateSchema(schema: unknown): schema is MCPServerSchema {
+    if (!schema || typeof schema !== 'object') return false;
+    const s = schema as Record<string, unknown>;
+
+    // Required fields
+    if (typeof s.name !== 'string' || !s.name.trim()) return false;
+    if (typeof s.command !== 'string' || !s.command.trim()) return false;
+    if (!Array.isArray(s.args)) return false;
+    if (!Array.isArray(s.fields)) return false;
+    if (!s.envMapping || typeof s.envMapping !== 'object') return false;
+
+    // Validate fields
+    for (const field of s.fields) {
+      if (!field || typeof field !== 'object') return false;
+      if (typeof field.key !== 'string' || !field.key.trim()) return false;
+      if (typeof field.label !== 'string' || !field.label.trim()) return false;
+      if (!['text', 'password', 'textarea', 'checkbox', 'number'].includes(field.type)) return false;
+    }
+
+    return true;
+  }
+
+  // Import schema from URL
+  async importFromUrl(url: string): Promise<MCPServerSchema> {
+    try {
+      // Validate URL
+      const urlObj = new URL(url);
+      if (!['http:', 'https:'].includes(urlObj.protocol)) {
+        throw new Error('URL must use http or https protocol');
+      }
+
+      // Use net module from electron for fetching (or https/http)
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (!this.validateSchema(data)) {
+        throw new Error('Invalid schema format. Required fields: name, command, args, fields, envMapping');
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to import schema from URL: ${error.message}`);
+      }
+      throw new Error('Failed to import schema from URL: Unknown error');
+    }
+  }
+
+  // Import schema from file
+  importFromFile(filePath: string): MCPServerSchema {
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error('File not found');
+      }
+
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const data = JSON.parse(content);
+
+      if (!this.validateSchema(data)) {
+        throw new Error('Invalid schema format. Required fields: name, command, args, fields, envMapping');
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Invalid schema') || error.message === 'File not found') {
+          throw error;
+        }
+        throw new Error(`Failed to import schema from file: ${error.message}`);
+      }
+      throw new Error('Failed to import schema from file: Unknown error');
+    }
+  }
+
+  // Add server from imported schema
+  addServerFromSchema(schema: MCPServerSchema, settings: Record<string, unknown>): MCPServerTemplate {
+    const serverData: Omit<MCPServerTemplate, 'id'> = {
+      type: 'imported',
+      name: schema.name,
+      enabled: true,
+      importedSchema: schema,
+      settings: settings as MCPServerTemplate['settings'],
+    };
+
+    return this.addServer(serverData);
   }
 }
 

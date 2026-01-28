@@ -6,7 +6,7 @@ import { sessionManager, SessionData } from './session-manager';
 import { settingsManager, Settings } from './settings-manager';
 import { idleNotificationManager } from './idle-notification-manager';
 import { attachmentManager, Attachment } from './attachment-manager';
-import { mcpManager, MCPServerTemplate } from './mcp-manager';
+import { mcpManager, MCPServerTemplate, MCPServerSchema } from './mcp-manager';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -206,6 +206,29 @@ ipcMain.handle('mcp:toggleServer', (_event, id: string): MCPServerTemplate | nul
 
 ipcMain.handle('mcp:getTemplates', () => {
   return mcpManager.getTemplates();
+});
+
+ipcMain.handle('mcp:importSchemaFromUrl', async (_event, url: string): Promise<MCPServerSchema> => {
+  return mcpManager.importFromUrl(url);
+});
+
+ipcMain.handle('mcp:importSchemaFromFile', async (): Promise<MCPServerSchema | null> => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [
+      { name: 'JSON Files', extensions: ['json'] },
+    ],
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  return mcpManager.importFromFile(result.filePaths[0]);
+});
+
+ipcMain.handle('mcp:addServerFromSchema', (_event, schema: MCPServerSchema, settings: Record<string, unknown>): MCPServerTemplate => {
+  return mcpManager.addServerFromSchema(schema, settings);
 });
 
 app.whenReady().then(() => {

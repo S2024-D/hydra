@@ -182,4 +182,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mcpGetTemplates: (): Promise<any> => {
     return ipcRenderer.invoke('mcp:getTemplates');
   },
+
+  mcpImportSchemaFromUrl: (url: string): Promise<any> => {
+    return ipcRenderer.invoke('mcp:importSchemaFromUrl', url);
+  },
+
+  mcpImportSchemaFromFile: (): Promise<any | null> => {
+    return ipcRenderer.invoke('mcp:importSchemaFromFile');
+  },
+
+  mcpAddServerFromSchema: (schema: any, settings: Record<string, any>): Promise<any> => {
+    return ipcRenderer.invoke('mcp:addServerFromSchema', schema, settings);
+  },
 });

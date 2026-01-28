@@ -1985,6 +1985,171 @@
     .mcp-env-add {
       margin-top: 4px;
     }
+
+    /* MCP Add Sections */
+    .mcp-add-sections {
+      padding: 0;
+    }
+
+    .mcp-add-section {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .mcp-add-section:last-child {
+      border-bottom: none;
+    }
+
+    .mcp-add-section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+
+    /* MCP Import Buttons */
+    .mcp-import-buttons {
+      display: flex;
+      gap: 12px;
+    }
+
+    .mcp-btn-import {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--text-secondary);
+    }
+
+    .mcp-btn-import:hover {
+      border-color: var(--accent-hover);
+      background: var(--bg-primary);
+      transform: translateY(-2px);
+      color: var(--text-primary);
+    }
+
+    .mcp-import-icon {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .mcp-btn-import span:last-child {
+      font-size: 13px;
+    }
+
+    /* URL Input Dialog */
+    .mcp-url-dialog-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 15%;
+      z-index: 3000;
+    }
+
+    .mcp-url-dialog {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      width: 450px;
+      max-width: 90%;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .mcp-url-dialog-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .mcp-url-dialog-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .mcp-url-dialog-body {
+      padding: 20px;
+    }
+
+    .mcp-url-dialog-error {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #f48771;
+      min-height: 18px;
+    }
+
+    .mcp-url-dialog-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-tertiary);
+    }
+
+    /* Schema Description */
+    .mcp-schema-description {
+      padding: 12px 20px;
+      font-size: 13px;
+      color: var(--text-muted);
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    /* Help Text and Links */
+    .mcp-help-text {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .mcp-help-text::before {
+      content: 'i';
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--border-color);
+      font-size: 10px;
+      font-style: italic;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .mcp-help-link {
+      color: var(--accent-hover);
+      text-decoration: none;
+      font-size: 12px;
+      margin-left: auto;
+    }
+
+    .mcp-help-link:hover {
+      text-decoration: underline;
+    }
+
+    .mcp-form-label .mcp-help-link {
+      font-weight: normal;
+      margin-left: 8px;
+    }
   </style>
 </head>
 <body>
