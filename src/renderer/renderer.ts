@@ -7,7 +7,6 @@ import { settingsPanel } from './settings-panel';
 import { terminalSearch } from './terminal-search';
 import { snippetManager } from './snippets';
 import { attachmentPanel } from './attachment-panel';
-import { mcpSettings } from './mcp-settings';
 import { orchestratorPanel } from './orchestrator-panel';
 import { hydraStatusPanel } from './hydra-status';
 
@@ -1108,7 +1107,28 @@ class HydraApp {
   }
 
   private showMCPSettings(): void {
-    mcpSettings.toggle();
+    if (!this.settings) return;
+    settingsPanel.showTab('mcp', this.settings, async (newSettings) => {
+      // Apply theme change
+      if (newSettings.theme !== this.settings?.theme) {
+        this.settings = await window.electronAPI.setTheme(newSettings.theme);
+      }
+      // Apply font changes
+      if (newSettings.fontFamily !== this.settings?.fontFamily ||
+          newSettings.fontSize !== this.settings?.fontSize) {
+        this.settings = await window.electronAPI.setFont(newSettings.fontFamily, newSettings.fontSize);
+      }
+      // Apply idle notification changes
+      if (newSettings.idleNotification.enabled !== this.settings?.idleNotification?.enabled ||
+          newSettings.idleNotification.timeoutSeconds !== this.settings?.idleNotification?.timeoutSeconds) {
+        this.settings = await window.electronAPI.setIdleNotification(
+          newSettings.idleNotification.enabled,
+          newSettings.idleNotification.timeoutSeconds
+        );
+      }
+      this.applyTheme();
+      this.fitAllTerminals();
+    });
   }
 
   private showOrchestrator(): void {
