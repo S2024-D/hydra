@@ -1,3 +1,5 @@
+import { mcpSettings } from './mcp-settings';
+
 export interface Settings {
   theme: 'dark' | 'light';
   fontFamily: string;
@@ -134,6 +136,20 @@ export class SettingsPanel {
             </div>
           </div>
 
+          <!-- MCP Section -->
+          <div class="settings-section">
+            <h3 class="settings-section-title">MCP Servers</h3>
+            <div class="settings-item">
+              <label class="settings-label">
+                Model Context Protocol
+                <span class="settings-hint">Configure MCP servers for AI assistant integration</span>
+              </label>
+              <div class="settings-control">
+                <button class="settings-mcp-btn" id="open-mcp-settings">Open MCP Settings</button>
+              </div>
+            </div>
+          </div>
+
           <!-- Keyboard Shortcuts Section -->
           <div class="settings-section">
             <h3 class="settings-section-title">Keyboard Shortcuts</h3>
@@ -181,6 +197,10 @@ export class SettingsPanel {
               <div class="shortcut-item">
                 <span class="shortcut-label">Image Attachments</span>
                 <span class="shortcut-key">&#8984;I</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-label">MCP Server Settings</span>
+                <span class="shortcut-key">&#8984;&#8679;,</span>
               </div>
             </div>
           </div>
@@ -303,6 +323,12 @@ export class SettingsPanel {
         this.settings.idleNotification.timeoutSeconds = timeout;
         this.notifyUpdate();
       }
+    });
+
+    // MCP Settings button
+    this.element.querySelector('#open-mcp-settings')?.addEventListener('click', () => {
+      this.hide();
+      mcpSettings.show();
     });
 
     // Escape key to close

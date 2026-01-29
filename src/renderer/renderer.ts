@@ -7,6 +7,9 @@ import { settingsPanel } from './settings-panel';
 import { terminalSearch } from './terminal-search';
 import { snippetManager } from './snippets';
 import { attachmentPanel } from './attachment-panel';
+import { mcpSettings } from './mcp-settings';
+import { orchestratorPanel } from './orchestrator-panel';
+import { hydraStatusPanel } from './hydra-status';
 
 interface ProjectSplitState {
   projectId: string | null;
@@ -100,6 +103,36 @@ declare global {
       checkFileExists: (filePath: string) => Promise<boolean>;
       readImageAsBase64: (filePath: string) => Promise<string | null>;
       getPathForFile: (file: File) => string;
+      // MCP Server APIs
+      mcpGetServers: () => Promise<any[]>;
+      mcpAddServer: (server: any) => Promise<any>;
+      mcpUpdateServer: (id: string, updates: any) => Promise<any>;
+      mcpRemoveServer: (id: string) => Promise<boolean>;
+      mcpToggleServer: (id: string) => Promise<any>;
+      mcpGetTemplates: () => Promise<any>;
+      mcpImportSchemaFromUrl: (url: string) => Promise<any>;
+      mcpImportSchemaFromFile: () => Promise<any | null>;
+      mcpAddServerFromSchema: (schema: any, settings: Record<string, any>) => Promise<any>;
+      // Orchestrator APIs
+      orchestratorGetAgents: () => Promise<any[]>;
+      orchestratorGetWorkflows: () => Promise<any[]>;
+      orchestratorGetWorkflow: (id: string) => Promise<any | null>;
+      orchestratorCreateWorkflow: (task: string, includeDesignReview: boolean) => Promise<any>;
+      orchestratorRunStep: (workflowId: string) => Promise<any | null>;
+      orchestratorRunAllSteps: (workflowId: string) => Promise<any | null>;
+      orchestratorApproveWorkflow: (workflowId: string) => Promise<any | null>;
+      orchestratorRejectWorkflow: (workflowId: string, feedback: string) => Promise<any | null>;
+      orchestratorDeleteWorkflow: (workflowId: string) => Promise<boolean>;
+      orchestratorResetWorkflow: (workflowId: string) => Promise<any | null>;
+      // Hydra Gateway APIs
+      hydraStart: () => Promise<any>;
+      hydraStop: () => Promise<void>;
+      hydraRefresh: () => Promise<any>;
+      hydraGetStatus: () => Promise<any>;
+      hydraGetTools: () => Promise<Array<{ name: string; serverName: string; description?: string }>>;
+      hydraSetPort: (port: number) => Promise<void>;
+      onHydraStatusChange: (callback: (status: any) => void) => void;
+      onHydraServerStateChange: (callback: (data: { serverId: string; serverName: string; status: string; error?: string }) => void) => void;
     };
   }
 }
@@ -1019,6 +1052,33 @@ class HydraApp {
       category: 'View',
       action: () => this.setViewMode('multi'),
     });
+
+    commandRegistry.register({
+      id: 'settings.mcpServers',
+      label: 'MCP Server Settings',
+      category: 'Settings',
+      shortcut: '⌘⇧,',
+      keybinding: { key: 'Comma', metaKey: true, shiftKey: true },
+      action: () => this.showMCPSettings(),
+    });
+
+    commandRegistry.register({
+      id: 'view.orchestrator',
+      label: 'Agent Orchestrator',
+      category: 'View',
+      shortcut: '⌘⇧O',
+      keybinding: { key: 'o', metaKey: true, shiftKey: true },
+      action: () => this.showOrchestrator(),
+    });
+
+    commandRegistry.register({
+      id: 'view.hydraGateway',
+      label: 'Hydra MCP Gateway',
+      category: 'View',
+      shortcut: '⌘⇧H',
+      keybinding: { key: 'h', metaKey: true, shiftKey: true },
+      action: () => this.showHydraGateway(),
+    });
   }
 
   private showTerminalSearchBar(): void {
@@ -1045,6 +1105,18 @@ class HydraApp {
 
   private showAttachments(): void {
     attachmentPanel.toggle();
+  }
+
+  private showMCPSettings(): void {
+    mcpSettings.toggle();
+  }
+
+  private showOrchestrator(): void {
+    orchestratorPanel.toggle();
+  }
+
+  private showHydraGateway(): void {
+    hydraStatusPanel.toggle();
   }
 
   private toggleViewMode(): void {

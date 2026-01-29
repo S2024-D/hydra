@@ -218,4 +218,120 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onMenuSplitDown: (callback: () => void) => {
     ipcRenderer.on('menu:splitDown', () => callback());
   },
+
+
+  // MCP Server APIs
+  mcpGetServers: (): Promise<any[]> => {
+    return ipcRenderer.invoke('mcp:getServers');
+  },
+
+  mcpAddServer: (server: any): Promise<any> => {
+    return ipcRenderer.invoke('mcp:addServer', server);
+  },
+
+  mcpUpdateServer: (id: string, updates: any): Promise<any> => {
+    return ipcRenderer.invoke('mcp:updateServer', id, updates);
+  },
+
+  mcpRemoveServer: (id: string): Promise<boolean> => {
+    return ipcRenderer.invoke('mcp:removeServer', id);
+  },
+
+  mcpToggleServer: (id: string): Promise<any> => {
+    return ipcRenderer.invoke('mcp:toggleServer', id);
+  },
+
+  mcpGetTemplates: (): Promise<any> => {
+    return ipcRenderer.invoke('mcp:getTemplates');
+  },
+
+  mcpImportSchemaFromUrl: (url: string): Promise<any> => {
+    return ipcRenderer.invoke('mcp:importSchemaFromUrl', url);
+  },
+
+  mcpImportSchemaFromFile: (): Promise<any | null> => {
+    return ipcRenderer.invoke('mcp:importSchemaFromFile');
+  },
+
+  mcpAddServerFromSchema: (schema: any, settings: Record<string, any>): Promise<any> => {
+    return ipcRenderer.invoke('mcp:addServerFromSchema', schema, settings);
+  },
+
+  // Orchestrator APIs
+  orchestratorGetAgents: (): Promise<any[]> => {
+    return ipcRenderer.invoke('orchestrator:getAgents');
+  },
+
+  orchestratorGetWorkflows: (): Promise<any[]> => {
+    return ipcRenderer.invoke('orchestrator:getWorkflows');
+  },
+
+  orchestratorGetWorkflow: (id: string): Promise<any | null> => {
+    return ipcRenderer.invoke('orchestrator:getWorkflow', id);
+  },
+
+  orchestratorCreateWorkflow: (task: string, includeDesignReview: boolean): Promise<any> => {
+    return ipcRenderer.invoke('orchestrator:createWorkflow', task, includeDesignReview);
+  },
+
+  orchestratorRunStep: (workflowId: string): Promise<any | null> => {
+    return ipcRenderer.invoke('orchestrator:runStep', workflowId);
+  },
+
+  orchestratorRunAllSteps: (workflowId: string): Promise<any | null> => {
+    return ipcRenderer.invoke('orchestrator:runAllSteps', workflowId);
+  },
+
+  orchestratorApproveWorkflow: (workflowId: string): Promise<any | null> => {
+    return ipcRenderer.invoke('orchestrator:approveWorkflow', workflowId);
+  },
+
+  orchestratorRejectWorkflow: (workflowId: string, feedback: string): Promise<any | null> => {
+    return ipcRenderer.invoke('orchestrator:rejectWorkflow', workflowId, feedback);
+  },
+
+  orchestratorDeleteWorkflow: (workflowId: string): Promise<boolean> => {
+    return ipcRenderer.invoke('orchestrator:deleteWorkflow', workflowId);
+  },
+
+  orchestratorResetWorkflow: (workflowId: string): Promise<any | null> => {
+    return ipcRenderer.invoke('orchestrator:resetWorkflow', workflowId);
+  },
+
+  // Hydra Gateway APIs
+  hydraStart: (): Promise<any> => {
+    return ipcRenderer.invoke('hydra:start');
+  },
+
+  hydraStop: (): Promise<void> => {
+    return ipcRenderer.invoke('hydra:stop');
+  },
+
+  hydraRefresh: (): Promise<any> => {
+    return ipcRenderer.invoke('hydra:refresh');
+  },
+
+  hydraGetStatus: (): Promise<any> => {
+    return ipcRenderer.invoke('hydra:getStatus');
+  },
+
+  hydraGetTools: (): Promise<Array<{ name: string; serverName: string; description?: string }>> => {
+    return ipcRenderer.invoke('hydra:getTools');
+  },
+
+  hydraSetPort: (port: number): Promise<void> => {
+    return ipcRenderer.invoke('hydra:setPort', port);
+  },
+
+  onHydraStatusChange: (callback: (status: any) => void) => {
+    ipcRenderer.on('hydra:statusChange', (_event, status) => {
+      callback(status);
+    });
+  },
+
+  onHydraServerStateChange: (callback: (data: { serverId: string; serverName: string; status: string; error?: string }) => void) => {
+    ipcRenderer.on('hydra:serverStateChange', (_event, data) => {
+      callback(data);
+    });
+  },
 });

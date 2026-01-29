@@ -7,6 +7,9 @@ import { settingsManager, Settings } from './settings-manager';
 import { idleNotificationManager } from './idle-notification-manager';
 import { attachmentManager, Attachment } from './attachment-manager';
 import { claudeSettingsManager, FlattenedHook, HookConfig } from './claude-settings-manager';
+import { mcpManager, MCPServerTemplate, MCPServerSchema } from './mcp-manager';
+import { orchestratorManager, AgentRole, WorkflowConfig } from './orchestrator-manager';
+import { gatewayManager, GatewayStatus } from './hydra-gateway';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -23,8 +26,8 @@ function createWindow(): void {
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-  // Open DevTools in development (uncomment if needed)
-  // mainWindow.webContents.openDevTools();
+  // Open DevTools in development
+  mainWindow.webContents.openDevTools();
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -379,6 +382,140 @@ ipcMain.handle('claude:getSettingsPath', (): string => {
   return claudeSettingsManager.getFilePath();
 });
 
+
+// MCP Server management
+ipcMain.handle('mcp:getServers', (): MCPServerTemplate[] => {
+  return mcpManager.getServers();
+});
+
+ipcMain.handle('mcp:addServer', (_event, server: Omit<MCPServerTemplate, 'id'>): MCPServerTemplate => {
+  return mcpManager.addServer(server);
+});
+
+ipcMain.handle('mcp:updateServer', (_event, id: string, updates: Partial<Omit<MCPServerTemplate, 'id'>>): MCPServerTemplate | null => {
+  return mcpManager.updateServer(id, updates);
+});
+
+ipcMain.handle('mcp:removeServer', (_event, id: string): boolean => {
+  return mcpManager.removeServer(id);
+});
+
+ipcMain.handle('mcp:toggleServer', (_event, id: string): MCPServerTemplate | null => {
+  return mcpManager.toggleServer(id);
+});
+
+ipcMain.handle('mcp:getTemplates', () => {
+  return mcpManager.getTemplates();
+});
+
+ipcMain.handle('mcp:importSchemaFromUrl', async (_event, url: string): Promise<MCPServerSchema> => {
+  return mcpManager.importFromUrl(url);
+});
+
+ipcMain.handle('mcp:importSchemaFromFile', async (): Promise<MCPServerSchema | null> => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [
+      { name: 'JSON Files', extensions: ['json'] },
+    ],
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  return mcpManager.importFromFile(result.filePaths[0]);
+});
+
+ipcMain.handle('mcp:addServerFromSchema', (_event, schema: MCPServerSchema, settings: Record<string, unknown>): MCPServerTemplate => {
+  return mcpManager.addServerFromSchema(schema, settings);
+});
+
+// Orchestrator management
+ipcMain.handle('orchestrator:getAgents', (): AgentRole[] => {
+  return orchestratorManager.getAgents();
+});
+
+ipcMain.handle('orchestrator:getWorkflows', (): WorkflowConfig[] => {
+  return orchestratorManager.getWorkflows();
+});
+
+ipcMain.handle('orchestrator:getWorkflow', (_event, id: string): WorkflowConfig | null => {
+  return orchestratorManager.getWorkflow(id);
+});
+
+ipcMain.handle('orchestrator:createWorkflow', (_event, task: string, includeDesignReview: boolean): WorkflowConfig => {
+  return orchestratorManager.createWorkflow(task, includeDesignReview);
+});
+
+ipcMain.handle('orchestrator:runStep', async (_event, workflowId: string): Promise<WorkflowConfig | null> => {
+  return orchestratorManager.runStep(workflowId);
+});
+
+ipcMain.handle('orchestrator:runAllSteps', async (_event, workflowId: string): Promise<WorkflowConfig | null> => {
+  return orchestratorManager.runAllSteps(workflowId);
+});
+
+ipcMain.handle('orchestrator:approveWorkflow', (_event, workflowId: string): WorkflowConfig | null => {
+  return orchestratorManager.approveWorkflow(workflowId);
+});
+
+ipcMain.handle('orchestrator:rejectWorkflow', (_event, workflowId: string, feedback: string): WorkflowConfig | null => {
+  return orchestratorManager.rejectWorkflow(workflowId, feedback);
+});
+
+ipcMain.handle('orchestrator:deleteWorkflow', (_event, workflowId: string): boolean => {
+  return orchestratorManager.deleteWorkflow(workflowId);
+});
+
+ipcMain.handle('orchestrator:resetWorkflow', (_event, workflowId: string): WorkflowConfig | null => {
+  return orchestratorManager.resetWorkflow(workflowId);
+});
+
+// Hydra Gateway management
+ipcMain.handle('hydra:start', async (): Promise<GatewayStatus> => {
+  return gatewayManager.start();
+});
+
+ipcMain.handle('hydra:stop', async (): Promise<void> => {
+  return gatewayManager.stop();
+});
+
+ipcMain.handle('hydra:refresh', async (): Promise<GatewayStatus> => {
+  return gatewayManager.refresh();
+});
+
+ipcMain.handle('hydra:getStatus', (): GatewayStatus => {
+  return gatewayManager.getStatus();
+});
+
+ipcMain.handle('hydra:getTools', (): Array<{ name: string; serverName: string; description?: string }> => {
+  return gatewayManager.getTools();
+});
+
+ipcMain.handle('hydra:setPort', (_event, port: number): void => {
+  gatewayManager.setPort(port);
+});
+
+// Forward gateway events to renderer
+gatewayManager.on('started', (status: GatewayStatus) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('hydra:statusChange', status);
+  }
+});
+
+gatewayManager.on('stopped', () => {
+  if (mainWindow) {
+    mainWindow.webContents.send('hydra:statusChange', gatewayManager.getStatus());
+  }
+});
+
+gatewayManager.on('serverStateChange', (data: { serverId: string; serverName: string; status: string; error?: string }) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('hydra:serverStateChange', data);
+  }
+});
+
 app.whenReady().then(() => {
   createMenu();
   createWindow();
@@ -390,9 +527,10 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
   terminalManager.closeAll();
   idleNotificationManager.cleanup();
+  await gatewayManager.stop();
   if (process.platform !== 'darwin') {
     app.quit();
   }
