@@ -1709,7 +1709,17 @@ class HydraApp {
   async createTerminal(name?: string, cwd?: string, projectId?: string | null): Promise<void> {
     // Use activeProjectId if projectId is not explicitly provided
     const terminalProjectId = projectId !== undefined ? projectId : this.activeProjectId;
-    const id = await window.electronAPI.createTerminal(name, cwd);
+
+    // If cwd is not specified and there's an active project, use the project's path
+    let effectiveCwd = cwd;
+    if (!effectiveCwd && this.activeProjectId) {
+      const activeProject = this.projects.get(this.activeProjectId);
+      if (activeProject?.path) {
+        effectiveCwd = activeProject.path;
+      }
+    }
+
+    const id = await window.electronAPI.createTerminal(name, effectiveCwd);
     const instance = this.createTerminalInstance(
       id,
       name || `Terminal ${this.terminals.size + 1}`,
