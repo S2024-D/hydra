@@ -1176,6 +1176,37 @@ class HydraApp {
     document.getElementById('add-project-btn')?.addEventListener('click', () => {
       this.addProject();
     });
+
+    // Menu event listeners
+    (window.electronAPI as any).onMenuOpenSettings?.(() => {
+      this.openSettings();
+    });
+
+    (window.electronAPI as any).onMenuNewTerminal?.(() => {
+      this.createTerminal();
+    });
+
+    (window.electronAPI as any).onMenuNewProject?.(() => {
+      this.addProject();
+    });
+
+    (window.electronAPI as any).onMenuCloseTerminal?.(() => {
+      if (this.activeTerminalId) {
+        this.closeTerminal(this.activeTerminalId);
+      }
+    });
+
+    (window.electronAPI as any).onMenuCommandPalette?.(() => {
+      this.commandPalette.show();
+    });
+
+    (window.electronAPI as any).onMenuSplitRight?.(() => {
+      this.splitTerminal('horizontal');
+    });
+
+    (window.electronAPI as any).onMenuSplitDown?.(() => {
+      this.splitTerminal('vertical');
+    });
   }
 
   // MRU Management

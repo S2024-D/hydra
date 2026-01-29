@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron';
 import * as path from 'path';
 import { terminalManager } from './terminal-manager';
 import { projectManager, Project } from './project-manager';
@@ -32,6 +32,164 @@ function createWindow(): void {
 
   terminalManager.setMainWindow(mainWindow);
   idleNotificationManager.setMainWindow(mainWindow);
+}
+
+function createMenu(): void {
+  const isMac = process.platform === 'darwin';
+
+  const template: Electron.MenuItemConstructorOptions[] = [
+    // App Menu (macOS only)
+    ...(isMac ? [{
+      label: app.name,
+      submenu: [
+        { role: 'about' as const },
+        { type: 'separator' as const },
+        {
+          label: 'Settings...',
+          accelerator: 'Cmd+,',
+          click: () => {
+            mainWindow?.webContents.send('menu:openSettings');
+          }
+        },
+        { type: 'separator' as const },
+        { role: 'services' as const },
+        { type: 'separator' as const },
+        { role: 'hide' as const },
+        { role: 'hideOthers' as const },
+        { role: 'unhide' as const },
+        { type: 'separator' as const },
+        { role: 'quit' as const }
+      ]
+    }] : []),
+
+    // File Menu
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Terminal',
+          accelerator: 'CmdOrCtrl+T',
+          click: () => {
+            mainWindow?.webContents.send('menu:newTerminal');
+          }
+        },
+        {
+          label: 'New Project',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          click: () => {
+            mainWindow?.webContents.send('menu:newProject');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Close Terminal',
+          accelerator: 'CmdOrCtrl+W',
+          click: () => {
+            mainWindow?.webContents.send('menu:closeTerminal');
+          }
+        },
+        ...(isMac ? [] : [
+          { type: 'separator' as const },
+          {
+            label: 'Settings',
+            accelerator: 'Ctrl+,',
+            click: () => {
+              mainWindow?.webContents.send('menu:openSettings');
+            }
+          },
+          { type: 'separator' as const },
+          { role: 'quit' as const }
+        ])
+      ]
+    },
+
+    // Edit Menu
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+
+    // View Menu
+    {
+      label: 'View',
+      submenu: [
+        {
+          label: 'Command Palette',
+          accelerator: 'CmdOrCtrl+Shift+P',
+          click: () => {
+            mainWindow?.webContents.send('menu:commandPalette');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Split Right',
+          accelerator: 'CmdOrCtrl+\\',
+          click: () => {
+            mainWindow?.webContents.send('menu:splitRight');
+          }
+        },
+        {
+          label: 'Split Down',
+          accelerator: 'CmdOrCtrl+Shift+\\',
+          click: () => {
+            mainWindow?.webContents.send('menu:splitDown');
+          }
+        },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+
+    // Window Menu
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac ? [
+          { type: 'separator' as const },
+          { role: 'front' as const }
+        ] : [
+          { role: 'close' as const }
+        ])
+      ]
+    },
+
+    // Help Menu
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'Keyboard Shortcuts',
+          click: () => {
+            mainWindow?.webContents.send('menu:openSettings');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'GitHub Repository',
+          click: () => {
+            shell.openExternal('https://github.com');
+          }
+        }
+      ]
+    }
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
 }
 
 // IPC handlers for terminal management
@@ -222,6 +380,7 @@ ipcMain.handle('claude:getSettingsPath', (): string => {
 });
 
 app.whenReady().then(() => {
+  createMenu();
   createWindow();
 
   app.on('activate', () => {

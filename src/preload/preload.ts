@@ -189,4 +189,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPathForFile: (file: File): string => {
     return webUtils.getPathForFile(file);
   },
+
+  // Menu event listeners
+  onMenuOpenSettings: (callback: () => void) => {
+    ipcRenderer.on('menu:openSettings', () => callback());
+  },
+
+  onMenuNewTerminal: (callback: () => void) => {
+    ipcRenderer.on('menu:newTerminal', () => callback());
+  },
+
+  onMenuNewProject: (callback: () => void) => {
+    ipcRenderer.on('menu:newProject', () => callback());
+  },
+
+  onMenuCloseTerminal: (callback: () => void) => {
+    ipcRenderer.on('menu:closeTerminal', () => callback());
+  },
+
+  onMenuCommandPalette: (callback: () => void) => {
+    ipcRenderer.on('menu:commandPalette', () => callback());
+  },
+
+  onMenuSplitRight: (callback: () => void) => {
+    ipcRenderer.on('menu:splitRight', () => callback());
+  },
+
+  onMenuSplitDown: (callback: () => void) => {
+    ipcRenderer.on('menu:splitDown', () => callback());
+  },
 });
