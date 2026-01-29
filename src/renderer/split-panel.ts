@@ -1,4 +1,5 @@
 export type SplitDirection = 'horizontal' | 'vertical';
+export type ViewMode = 'single' | 'multi';
 
 export interface PanelGroup {
   type: 'group';
@@ -40,6 +41,8 @@ export class SplitPanelManager {
   private container: HTMLElement;
   private callbacks: SplitPanelCallbacks;
   private activeGroupNode: PanelGroup | null = null;
+  private viewMode: ViewMode = 'single';
+  private savedSingleViewRoot: PanelNode | null = null;
 
   constructor(container: HTMLElement, callbacks: SplitPanelCallbacks) {
     this.container = container;
@@ -77,8 +80,11 @@ export class SplitPanelManager {
   setRootFromNode(node: PanelNode | LegacyPanelNode | null): void {
     if (node) {
       this.root = this.migrateLegacyNode(node);
+      // 새로운 root의 첫 번째 그룹을 activeGroup으로 설정
+      this.activeGroupNode = this.findFirstGroup(this.root);
     } else {
       this.root = null;
+      this.activeGroupNode = null;
     }
     this.render();
   }
@@ -419,6 +425,15 @@ export class SplitPanelManager {
     return null;
   }
 
+  private findFirstGroup(node: PanelNode | null): PanelGroup | null {
+    if (!node) return null;
+    if (node.type === 'group') return node;
+    if (node.type === 'split' && node.children[0]) {
+      return this.findFirstGroup(node.children[0]);
+    }
+    return null;
+  }
+
   hasTerminal(terminalId: string): boolean {
     return this.getAllTerminalIds().includes(terminalId);
   }
@@ -713,5 +728,275 @@ export class SplitPanelManager {
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
     });
+  }
+
+  // ===== View Mode Methods =====
+
+  getViewMode(): ViewMode {
+    return this.viewMode;
+  }
+
+  getSavedSingleViewRoot(): PanelNode | null {
+    return this.savedSingleViewRoot;
+  }
+
+  restoreViewModeState(viewMode: ViewMode, savedSingleViewRoot: PanelNode | null): void {
+    this.viewMode = viewMode;
+    this.savedSingleViewRoot = savedSingleViewRoot;
+  }
+
+  toggleViewMode(): void {
+    if (this.viewMode === 'single') {
+      this.switchToMultiView();
+    } else {
+      this.switchToSingleView();
+    }
+  }
+
+  switchToMultiView(): void {
+    if (this.viewMode === 'multi') return;
+
+    const terminalIds = this.getAllTerminalIds();
+    if (terminalIds.length <= 1) return;
+
+    // Save current single view root
+    this.savedSingleViewRoot = this.root;
+    this.viewMode = 'multi';
+
+    // Create multi-view layout
+    this.root = this.createMultiViewLayout(terminalIds);
+    this.activeGroupNode = this.findFirstGroup(this.root);
+    this.render();
+  }
+
+  switchToSingleView(): void {
+    if (this.viewMode === 'single') return;
+
+    const terminalIds = this.getAllTerminalIds();
+    if (terminalIds.length === 0) return;
+
+    this.viewMode = 'single';
+
+    // Restore saved root or create new single group with all terminals
+    if (this.savedSingleViewRoot) {
+      this.root = this.savedSingleViewRoot;
+      this.savedSingleViewRoot = null;
+    } else {
+      // Create single group with all terminals as tabs
+      const activeId = this.activeGroupNode?.activeTerminalId || terminalIds[0];
+      this.root = {
+        type: 'group',
+        terminalIds: terminalIds,
+        activeTerminalId: activeId,
+      };
+    }
+
+    this.activeGroupNode = this.findFirstGroup(this.root);
+    this.render();
+  }
+
+  createMultiViewLayout(terminalIds: string[]): PanelNode {
+    const count = terminalIds.length;
+
+    if (count <= 1) {
+      return {
+        type: 'group',
+        terminalIds: terminalIds,
+        activeTerminalId: terminalIds[0] || '',
+      };
+    }
+
+    if (count === 2) {
+      return this.createTwoTerminalLayout(terminalIds);
+    }
+
+    if (count === 3) {
+      return this.createThreeTerminalLayout(terminalIds);
+    }
+
+    if (count === 4) {
+      return this.createFourTerminalLayout(terminalIds);
+    }
+
+    return this.createGridLayout(terminalIds);
+  }
+
+  // 2 terminals: left-right split
+  private createTwoTerminalLayout(terminalIds: string[]): PanelNode {
+    return {
+      type: 'split',
+      direction: 'vertical',
+      ratio: 0.5,
+      children: [
+        { type: 'group', terminalIds: [terminalIds[0]], activeTerminalId: terminalIds[0] },
+        { type: 'group', terminalIds: [terminalIds[1]], activeTerminalId: terminalIds[1] },
+      ],
+    };
+  }
+
+  // 3 terminals: 1 on left, 2 stacked on right
+  private createThreeTerminalLayout(terminalIds: string[]): PanelNode {
+    return {
+      type: 'split',
+      direction: 'vertical',
+      ratio: 0.5,
+      children: [
+        { type: 'group', terminalIds: [terminalIds[0]], activeTerminalId: terminalIds[0] },
+        {
+          type: 'split',
+          direction: 'horizontal',
+          ratio: 0.5,
+          children: [
+            { type: 'group', terminalIds: [terminalIds[1]], activeTerminalId: terminalIds[1] },
+            { type: 'group', terminalIds: [terminalIds[2]], activeTerminalId: terminalIds[2] },
+          ],
+        },
+      ],
+    };
+  }
+
+  // 4 terminals: 2x2 grid
+  private createFourTerminalLayout(terminalIds: string[]): PanelNode {
+    return {
+      type: 'split',
+      direction: 'horizontal',
+      ratio: 0.5,
+      children: [
+        {
+          type: 'split',
+          direction: 'vertical',
+          ratio: 0.5,
+          children: [
+            { type: 'group', terminalIds: [terminalIds[0]], activeTerminalId: terminalIds[0] },
+            { type: 'group', terminalIds: [terminalIds[1]], activeTerminalId: terminalIds[1] },
+          ],
+        },
+        {
+          type: 'split',
+          direction: 'vertical',
+          ratio: 0.5,
+          children: [
+            { type: 'group', terminalIds: [terminalIds[2]], activeTerminalId: terminalIds[2] },
+            { type: 'group', terminalIds: [terminalIds[3]], activeTerminalId: terminalIds[3] },
+          ],
+        },
+      ],
+    };
+  }
+
+  // 5+ terminals: balanced grid
+  private createGridLayout(terminalIds: string[]): PanelNode {
+    const count = terminalIds.length;
+    const cols = Math.ceil(Math.sqrt(count));
+    const rows = Math.ceil(count / cols);
+
+    const createRow = (startIdx: number, colCount: number): PanelNode => {
+      const rowTerminals: string[] = [];
+      for (let i = 0; i < colCount && startIdx + i < count; i++) {
+        rowTerminals.push(terminalIds[startIdx + i]);
+      }
+
+      if (rowTerminals.length === 1) {
+        return { type: 'group', terminalIds: rowTerminals, activeTerminalId: rowTerminals[0] };
+      }
+
+      // Create horizontal splits for this row
+      return this.createHorizontalSplits(rowTerminals);
+    };
+
+    const createHorizontalSplits = (ids: string[]): PanelNode => {
+      if (ids.length === 1) {
+        return { type: 'group', terminalIds: ids, activeTerminalId: ids[0] };
+      }
+      if (ids.length === 2) {
+        return {
+          type: 'split',
+          direction: 'vertical',
+          ratio: 0.5,
+          children: [
+            { type: 'group', terminalIds: [ids[0]], activeTerminalId: ids[0] },
+            { type: 'group', terminalIds: [ids[1]], activeTerminalId: ids[1] },
+          ],
+        };
+      }
+      const mid = Math.ceil(ids.length / 2);
+      return {
+        type: 'split',
+        direction: 'vertical',
+        ratio: mid / ids.length,
+        children: [
+          createHorizontalSplits(ids.slice(0, mid)),
+          createHorizontalSplits(ids.slice(mid)),
+        ],
+      };
+    };
+
+    // Create rows and stack them vertically
+    const rowNodes: PanelNode[] = [];
+    for (let row = 0; row < rows; row++) {
+      const startIdx = row * cols;
+      const actualCols = Math.min(cols, count - startIdx);
+      if (actualCols > 0) {
+        rowNodes.push(createRow(startIdx, actualCols));
+      }
+    }
+
+    if (rowNodes.length === 1) {
+      return rowNodes[0];
+    }
+
+    // Stack rows vertically
+    const createVerticalSplits = (nodes: PanelNode[]): PanelNode => {
+      if (nodes.length === 1) {
+        return nodes[0];
+      }
+      if (nodes.length === 2) {
+        return {
+          type: 'split',
+          direction: 'horizontal',
+          ratio: 0.5,
+          children: [nodes[0], nodes[1]],
+        };
+      }
+      const mid = Math.ceil(nodes.length / 2);
+      return {
+        type: 'split',
+        direction: 'horizontal',
+        ratio: mid / nodes.length,
+        children: [
+          createVerticalSplits(nodes.slice(0, mid)),
+          createVerticalSplits(nodes.slice(mid)),
+        ],
+      };
+    };
+
+    return createVerticalSplits(rowNodes);
+  }
+
+  private createHorizontalSplits(ids: string[]): PanelNode {
+    if (ids.length === 1) {
+      return { type: 'group', terminalIds: ids, activeTerminalId: ids[0] };
+    }
+    if (ids.length === 2) {
+      return {
+        type: 'split',
+        direction: 'vertical',
+        ratio: 0.5,
+        children: [
+          { type: 'group', terminalIds: [ids[0]], activeTerminalId: ids[0] },
+          { type: 'group', terminalIds: [ids[1]], activeTerminalId: ids[1] },
+        ],
+      };
+    }
+    const mid = Math.ceil(ids.length / 2);
+    return {
+      type: 'split',
+      direction: 'vertical',
+      ratio: mid / ids.length,
+      children: [
+        this.createHorizontalSplits(ids.slice(0, mid)),
+        this.createHorizontalSplits(ids.slice(mid)),
+      ],
+    };
   }
 }

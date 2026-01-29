@@ -647,14 +647,14 @@ class MCPSettings {
           formFields += `
             <div class="mcp-form-field">
               <label class="mcp-form-label">${field.label}</label>
-              <textarea class="mcp-form-textarea" id="mcp-field-${field.key}" rows="4" placeholder="${field.placeholder || ''}">${this.escapeHtml(textValue)}</textarea>
+              <textarea class="mcp-form-textarea" id="mcp-field-${field.key}" rows="4" placeholder="${field.placeholder || ''}">${this.escapeHtml(String(textValue))}</textarea>
             </div>
           `;
         } else {
           formFields += `
             <div class="mcp-form-field">
               <label class="mcp-form-label">${field.label}</label>
-              <input type="${field.type}" class="mcp-form-input" id="mcp-field-${field.key}" value="${this.escapeHtml(value || '')}" placeholder="${field.placeholder || ''}">
+              <input type="${field.type}" class="mcp-form-input" id="mcp-field-${field.key}" value="${this.escapeHtml(String(value || ''))}" placeholder="${field.placeholder || ''}">
             </div>
           `;
         }

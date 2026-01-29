@@ -1,7 +1,7 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { CommandPalette, commandRegistry, shortcutManager } from './command-palette';
-import { SplitPanelManager, SplitDirection, PanelNode, PanelGroup } from './split-panel';
+import { SplitPanelManager, SplitDirection, PanelNode, PanelGroup, ViewMode } from './split-panel';
 import { inputDialog } from './input-dialog';
 import { settingsPanel } from './settings-panel';
 import { terminalSearch } from './terminal-search';
@@ -9,11 +9,14 @@ import { snippetManager } from './snippets';
 import { attachmentPanel } from './attachment-panel';
 import { mcpSettings } from './mcp-settings';
 import { orchestratorPanel } from './orchestrator-panel';
+import { hydraStatusPanel } from './hydra-status';
 
 interface ProjectSplitState {
   projectId: string | null;
   rootNode: PanelNode | null;
   activeTerminalId: string | null;
+  viewMode?: ViewMode;
+  savedSingleViewRoot?: PanelNode | null;
 }
 
 interface Project {
@@ -27,6 +30,8 @@ interface SerializedProjectSplitState {
   projectId: string | null;
   rootNode: PanelNode | null;
   activeTerminalId: string | null;
+  viewMode?: ViewMode;
+  savedSingleViewRoot?: PanelNode | null;
 }
 
 interface SessionData {
@@ -97,6 +102,7 @@ declare global {
       getAttachments: () => Promise<any[]>;
       checkFileExists: (filePath: string) => Promise<boolean>;
       readImageAsBase64: (filePath: string) => Promise<string | null>;
+      getPathForFile: (file: File) => string;
       // MCP Server APIs
       mcpGetServers: () => Promise<any[]>;
       mcpAddServer: (server: any) => Promise<any>;
@@ -104,6 +110,9 @@ declare global {
       mcpRemoveServer: (id: string) => Promise<boolean>;
       mcpToggleServer: (id: string) => Promise<any>;
       mcpGetTemplates: () => Promise<any>;
+      mcpImportSchemaFromUrl: (url: string) => Promise<any>;
+      mcpImportSchemaFromFile: () => Promise<any | null>;
+      mcpAddServerFromSchema: (schema: any, settings: Record<string, any>) => Promise<any>;
       // Orchestrator APIs
       orchestratorGetAgents: () => Promise<any[]>;
       orchestratorGetWorkflows: () => Promise<any[]>;
@@ -115,6 +124,15 @@ declare global {
       orchestratorRejectWorkflow: (workflowId: string, feedback: string) => Promise<any | null>;
       orchestratorDeleteWorkflow: (workflowId: string) => Promise<boolean>;
       orchestratorResetWorkflow: (workflowId: string) => Promise<any | null>;
+      // Hydra Gateway APIs
+      hydraStart: () => Promise<any>;
+      hydraStop: () => Promise<void>;
+      hydraRefresh: () => Promise<any>;
+      hydraGetStatus: () => Promise<any>;
+      hydraGetTools: () => Promise<Array<{ name: string; serverName: string; description?: string }>>;
+      hydraSetPort: (port: number) => Promise<void>;
+      onHydraStatusChange: (callback: (status: any) => void) => void;
+      onHydraServerStateChange: (callback: (data: { serverId: string; serverName: string; status: string; error?: string }) => void) => void;
     };
   }
 }
@@ -437,6 +455,8 @@ class HydraApp {
     const state = this.getOrCreateProjectSplitState(this.activeProjectId);
     state.rootNode = this.splitManager.getRoot();
     state.activeTerminalId = this.activeTerminalId;
+    state.viewMode = this.splitManager.getViewMode();
+    state.savedSingleViewRoot = this.splitManager.getSavedSingleViewRoot();
   }
 
   private switchToProject(projectId: string | null): void {
@@ -455,6 +475,11 @@ class HydraApp {
 
     if (state.rootNode) {
       this.splitManager.setRootFromNode(state.rootNode);
+      // Restore view mode state
+      this.splitManager.restoreViewModeState(
+        state.viewMode || 'single',
+        state.savedSingleViewRoot || null
+      );
       if (state.activeTerminalId && this.terminals.has(state.activeTerminalId)) {
         this.activeTerminalId = state.activeTerminalId;
       } else if (terminalsForProject.length > 0) {
@@ -622,11 +647,16 @@ class HydraApp {
         const updatedActiveId = savedState.activeTerminalId
           ? idMapping.get(savedState.activeTerminalId) || null
           : null;
+        const updatedSavedSingleViewRoot = savedState.savedSingleViewRoot
+          ? updateNodeIds(savedState.savedSingleViewRoot)
+          : null;
 
         this.projectSplitStates.set(savedState.projectId, {
           projectId: savedState.projectId,
           rootNode: updatedRootNode,
           activeTerminalId: updatedActiveId,
+          viewMode: savedState.viewMode,
+          savedSingleViewRoot: updatedSavedSingleViewRoot,
         });
       }
     }
@@ -636,6 +666,11 @@ class HydraApp {
     const state = this.projectSplitStates.get(this.activeProjectId);
     if (state && state.rootNode) {
       this.splitManager.setRootFromNode(state.rootNode);
+      // Restore view mode state
+      this.splitManager.restoreViewModeState(
+        state.viewMode || 'single',
+        state.savedSingleViewRoot || null
+      );
       this.activeTerminalId = state.activeTerminalId;
     } else {
       const terminalsForProject = this.getTerminalsForProject(this.activeProjectId);
@@ -673,6 +708,8 @@ class HydraApp {
       projectId: state.projectId,
       rootNode: state.rootNode,
       activeTerminalId: state.activeTerminalId,
+      viewMode: state.viewMode,
+      savedSingleViewRoot: state.savedSingleViewRoot,
     }));
 
     const sessionData: SessionData = {
@@ -994,11 +1031,34 @@ class HydraApp {
     });
 
     commandRegistry.register({
+      id: 'view.toggleMultiView',
+      label: 'Toggle Multi/Single View',
+      category: 'View',
+      shortcut: '⌘⇧M',
+      keybinding: { key: 'm', metaKey: true, shiftKey: true },
+      action: () => this.toggleViewMode(),
+    });
+
+    commandRegistry.register({
+      id: 'view.singleView',
+      label: 'Single View (Tabs)',
+      category: 'View',
+      action: () => this.setViewMode('single'),
+    });
+
+    commandRegistry.register({
+      id: 'view.multiView',
+      label: 'Multi View (Split)',
+      category: 'View',
+      action: () => this.setViewMode('multi'),
+    });
+
+    commandRegistry.register({
       id: 'settings.mcpServers',
       label: 'MCP Server Settings',
       category: 'Settings',
       shortcut: '⌘⇧,',
-      keybinding: { key: ',', metaKey: true, shiftKey: true },
+      keybinding: { key: 'Comma', metaKey: true, shiftKey: true },
       action: () => this.showMCPSettings(),
     });
 
@@ -1009,6 +1069,15 @@ class HydraApp {
       shortcut: '⌘⇧O',
       keybinding: { key: 'o', metaKey: true, shiftKey: true },
       action: () => this.showOrchestrator(),
+    });
+
+    commandRegistry.register({
+      id: 'view.hydraGateway',
+      label: 'Hydra MCP Gateway',
+      category: 'View',
+      shortcut: '⌘⇧H',
+      keybinding: { key: 'h', metaKey: true, shiftKey: true },
+      action: () => this.showHydraGateway(),
     });
   }
 
@@ -1044,6 +1113,26 @@ class HydraApp {
 
   private showOrchestrator(): void {
     orchestratorPanel.toggle();
+  }
+
+  private showHydraGateway(): void {
+    hydraStatusPanel.toggle();
+  }
+
+  private toggleViewMode(): void {
+    this.splitManager.toggleViewMode();
+    this.saveCurrentProjectSplitState();
+    setTimeout(() => this.fitAllTerminals(), 0);
+  }
+
+  private setViewMode(mode: ViewMode): void {
+    if (mode === 'single') {
+      this.splitManager.switchToSingleView();
+    } else {
+      this.splitManager.switchToMultiView();
+    }
+    this.saveCurrentProjectSplitState();
+    setTimeout(() => this.fitAllTerminals(), 0);
   }
 
   private openSettings(): void {
@@ -1097,6 +1186,17 @@ class HydraApp {
       this.attentionTerminals = new Set(terminalIds);
       this.renderSidebar();
       this.splitManager.render();
+
+      // Restore focus to active terminal after re-rendering
+      // (render() removes and re-adds DOM elements, causing focus loss)
+      if (this.activeTerminalId) {
+        const instance = this.terminals.get(this.activeTerminalId);
+        if (instance) {
+          setTimeout(() => {
+            instance.terminal.focus();
+          }, 0);
+        }
+      }
     });
 
     window.addEventListener('resize', () => {
@@ -1147,6 +1247,37 @@ class HydraApp {
 
     document.getElementById('add-project-btn')?.addEventListener('click', () => {
       this.addProject();
+    });
+
+    // Menu event listeners
+    (window.electronAPI as any).onMenuOpenSettings?.(() => {
+      this.openSettings();
+    });
+
+    (window.electronAPI as any).onMenuNewTerminal?.(() => {
+      this.createTerminal();
+    });
+
+    (window.electronAPI as any).onMenuNewProject?.(() => {
+      this.addProject();
+    });
+
+    (window.electronAPI as any).onMenuCloseTerminal?.(() => {
+      if (this.activeTerminalId) {
+        this.closeTerminal(this.activeTerminalId);
+      }
+    });
+
+    (window.electronAPI as any).onMenuCommandPalette?.(() => {
+      this.commandPalette.show();
+    });
+
+    (window.electronAPI as any).onMenuSplitRight?.(() => {
+      this.splitTerminal('horizontal');
+    });
+
+    (window.electronAPI as any).onMenuSplitDown?.(() => {
+      this.splitTerminal('vertical');
     });
   }
 
@@ -1252,7 +1383,16 @@ class HydraApp {
   // Group Navigation
   private switchToNextTabInGroup(): void {
     const activeGroup = this.splitManager.getActiveGroup();
-    if (!activeGroup || activeGroup.terminalIds.length <= 1) return;
+    if (!activeGroup) return;
+
+    // In multi-view mode with single tab per group, move to next group
+    if (activeGroup.terminalIds.length <= 1) {
+      if (this.splitManager.getViewMode() === 'multi') {
+        this.focusNextGroup();
+        return;
+      }
+      return;
+    }
 
     const currentIndex = activeGroup.terminalIds.indexOf(activeGroup.activeTerminalId);
     const nextIndex = (currentIndex + 1) % activeGroup.terminalIds.length;
@@ -1262,7 +1402,16 @@ class HydraApp {
 
   private switchToPreviousTabInGroup(): void {
     const activeGroup = this.splitManager.getActiveGroup();
-    if (!activeGroup || activeGroup.terminalIds.length <= 1) return;
+    if (!activeGroup) return;
+
+    // In multi-view mode with single tab per group, move to previous group
+    if (activeGroup.terminalIds.length <= 1) {
+      if (this.splitManager.getViewMode() === 'multi') {
+        this.focusPreviousGroup();
+        return;
+      }
+      return;
+    }
 
     const currentIndex = activeGroup.terminalIds.indexOf(activeGroup.activeTerminalId);
     const prevIndex = (currentIndex - 1 + activeGroup.terminalIds.length) % activeGroup.terminalIds.length;
@@ -1484,8 +1633,54 @@ class HydraApp {
 
     terminal.open(element);
 
+    // KeyboardShortcutManager가 window capture phase에서 먼저 처리하므로
+    // 안전을 위한 기본 체크만 유지
+    terminal.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+      if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 'p') {
+        return false;
+      }
+      return true;
+    });
+
     terminal.onData((data: string) => {
       window.electronAPI.sendInput(id, data);
+    });
+
+    // File drag and drop support
+    element.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      element.classList.add('drag-over');
+    });
+
+    element.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      element.classList.remove('drag-over');
+    });
+
+    element.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      element.classList.remove('drag-over');
+
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        const paths: string[] = [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const filePath = window.electronAPI.getPathForFile(file);
+          if (filePath) {
+            // Escape spaces in path
+            const escapedPath = filePath.includes(' ') ? `"${filePath}"` : filePath;
+            paths.push(escapedPath);
+          }
+        }
+        if (paths.length > 0) {
+          window.electronAPI.sendInput(id, paths.join(' '));
+          terminal.focus();
+        }
+      }
     });
 
     return { id, name, projectId, terminal, fitAddon, element };

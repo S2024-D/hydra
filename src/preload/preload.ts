@@ -235,4 +235,41 @@ contextBridge.exposeInMainWorld('electronAPI', {
   orchestratorResetWorkflow: (workflowId: string): Promise<any | null> => {
     return ipcRenderer.invoke('orchestrator:resetWorkflow', workflowId);
   },
+
+  // Hydra Gateway APIs
+  hydraStart: (): Promise<any> => {
+    return ipcRenderer.invoke('hydra:start');
+  },
+
+  hydraStop: (): Promise<void> => {
+    return ipcRenderer.invoke('hydra:stop');
+  },
+
+  hydraRefresh: (): Promise<any> => {
+    return ipcRenderer.invoke('hydra:refresh');
+  },
+
+  hydraGetStatus: (): Promise<any> => {
+    return ipcRenderer.invoke('hydra:getStatus');
+  },
+
+  hydraGetTools: (): Promise<Array<{ name: string; serverName: string; description?: string }>> => {
+    return ipcRenderer.invoke('hydra:getTools');
+  },
+
+  hydraSetPort: (port: number): Promise<void> => {
+    return ipcRenderer.invoke('hydra:setPort', port);
+  },
+
+  onHydraStatusChange: (callback: (status: any) => void) => {
+    ipcRenderer.on('hydra:statusChange', (_event, status) => {
+      callback(status);
+    });
+  },
+
+  onHydraServerStateChange: (callback: (data: { serverId: string; serverName: string; status: string; error?: string }) => void) => {
+    ipcRenderer.on('hydra:serverStateChange', (_event, data) => {
+      callback(data);
+    });
+  },
 });

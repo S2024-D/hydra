@@ -328,7 +328,8 @@ export class KeyboardShortcutManager {
   }
 
   private setupGlobalListener(): void {
-    document.addEventListener('keydown', (e) => this.handleKeyDown(e), true);
+    // window 레벨에서 capture phase로 가장 먼저 이벤트를 받음
+    window.addEventListener('keydown', (e) => this.handleKeyDown(e), true);
   }
 
   // Register custom handler for special cases (MRU switcher, etc.)
@@ -343,10 +344,12 @@ export class KeyboardShortcutManager {
 
   private handleKeyDown(e: KeyboardEvent): void {
     // Skip if focused on input elements (except for specific shortcuts)
+    // xterm의 숨겨진 textarea는 제외 (xterm-helper-textarea 클래스)
     const target = e.target as HTMLElement;
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+    const isXtermTextarea = target.classList?.contains('xterm-helper-textarea');
+    if (!isXtermTextarea && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
       // Only allow Escape and command palette shortcut
-      if (e.key !== 'Escape' && !((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'p')) {
+      if (e.key !== 'Escape' && !((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyP')) {
         return;
       }
     }
@@ -354,6 +357,7 @@ export class KeyboardShortcutManager {
     // Let custom handlers try first
     for (const handler of this.customHandlers.values()) {
       if (handler(e)) {
+        e.stopImmediatePropagation();
         return;
       }
     }
@@ -361,6 +365,7 @@ export class KeyboardShortcutManager {
     // Handle pending key sequence
     if (this.pendingSequence) {
       e.preventDefault();
+      e.stopImmediatePropagation();
       const commands = commandRegistry.getAll();
 
       for (const cmd of commands) {
@@ -388,6 +393,7 @@ export class KeyboardShortcutManager {
         delete firstPart.sequence;
         if (this.matchesBinding(e, firstPart)) {
           e.preventDefault();
+          e.stopImmediatePropagation();
           this.startSequence(firstPart);
           return;
         }
@@ -398,6 +404,7 @@ export class KeyboardShortcutManager {
     for (const cmd of commands) {
       if (cmd.keybinding && !cmd.keybinding.sequence && this.matchesBinding(e, cmd.keybinding)) {
         e.preventDefault();
+        e.stopImmediatePropagation();  // xterm으로 전파 차단
         cmd.action();
         return;
       }

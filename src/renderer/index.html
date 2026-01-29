@@ -2882,6 +2882,380 @@
     .approval-feedback-section .orchestrator-form-label {
       margin-bottom: 8px;
     }
+
+    /* Hydra Gateway Panel */
+    .hydra-panel {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 2000;
+    }
+
+    .hydra-panel.visible {
+      display: block;
+    }
+
+    .hydra-panel-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    .hydra-panel-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 650px;
+      max-width: 90%;
+      max-height: 80vh;
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hydra-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .hydra-panel-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .hydra-panel-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .hydra-panel-close:hover {
+      color: var(--text-primary);
+    }
+
+    .hydra-panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0;
+    }
+
+    /* Hydra Status Section */
+    .hydra-status-section {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .hydra-status-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .hydra-status-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .hydra-status-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: #f44336;
+    }
+
+    .hydra-status-indicator.running {
+      background-color: #4caf50;
+      box-shadow: 0 0 8px rgba(76, 175, 80, 0.5);
+    }
+
+    .hydra-status-indicator.stopped {
+      background-color: #f44336;
+    }
+
+    .hydra-status-text {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .hydra-status-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .hydra-btn {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .hydra-btn:hover {
+      background: var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .hydra-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .hydra-btn-start {
+      background: #2ea043;
+      border-color: #2ea043;
+      color: white;
+    }
+
+    .hydra-btn-start:hover {
+      background: #238636;
+      border-color: #238636;
+    }
+
+    .hydra-btn-stop {
+      background: #da3633;
+      border-color: #da3633;
+      color: white;
+    }
+
+    .hydra-btn-stop:hover {
+      background: #b62324;
+      border-color: #b62324;
+    }
+
+    .hydra-connection-info {
+      margin-top: 12px;
+      padding: 12px;
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+    }
+
+    .hydra-connection-url {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .hydra-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .hydra-url {
+      flex: 1;
+      font-size: 13px;
+      font-family: 'Menlo', 'Monaco', monospace;
+      color: var(--accent-hover);
+      background: var(--bg-primary);
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .hydra-btn-copy {
+      background: var(--accent-hover);
+      border: none;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .hydra-btn-copy:hover {
+      background: var(--accent-color);
+    }
+
+    .hydra-connection-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .hydra-connection-hint code {
+      font-size: 11px;
+      background: var(--bg-primary);
+      padding: 2px 4px;
+      border-radius: 3px;
+      word-break: break-all;
+    }
+
+    /* Hydra Servers Section */
+    .hydra-servers-section,
+    .hydra-tools-section {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .hydra-tools-section {
+      border-bottom: none;
+    }
+
+    .hydra-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .hydra-section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .hydra-server-count,
+    .hydra-tool-count {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .hydra-server-list,
+    .hydra-tool-list {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .hydra-empty {
+      font-size: 13px;
+      color: var(--text-muted);
+      padding: 16px 0;
+      text-align: center;
+    }
+
+    .hydra-server-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    .hydra-server-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .hydra-server-status {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-top: 4px;
+      flex-shrink: 0;
+    }
+
+    .hydra-server-status.ready {
+      background-color: #4caf50;
+    }
+
+    .hydra-server-status.starting {
+      background-color: #ff9800;
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    .hydra-server-status.error {
+      background-color: #f44336;
+    }
+
+    .hydra-server-status.stopped {
+      background-color: #9e9e9e;
+    }
+
+    .hydra-server-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .hydra-server-name {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .hydra-server-meta {
+      display: block;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .hydra-server-error {
+      display: block;
+      font-size: 11px;
+      color: #f48771;
+      margin-top: 4px;
+    }
+
+    /* Tool Groups */
+    .hydra-tool-group {
+      margin-bottom: 12px;
+    }
+
+    .hydra-tool-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .hydra-tool-group-header {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      padding: 4px 0;
+      margin-bottom: 6px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .hydra-tool-item {
+      padding: 6px 10px;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      margin-bottom: 4px;
+    }
+
+    .hydra-tool-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .hydra-tool-name {
+      display: block;
+      font-size: 12px;
+      font-family: 'Menlo', 'Monaco', monospace;
+      color: var(--accent-hover);
+    }
+
+    .hydra-tool-desc {
+      display: block;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   </style>
 </head>
 <body>

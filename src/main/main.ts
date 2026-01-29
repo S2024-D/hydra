@@ -8,6 +8,7 @@ import { idleNotificationManager } from './idle-notification-manager';
 import { attachmentManager, Attachment } from './attachment-manager';
 import { mcpManager, MCPServerTemplate, MCPServerSchema } from './mcp-manager';
 import { orchestratorManager, AgentRole, WorkflowConfig } from './orchestrator-manager';
+import { gatewayManager, GatewayStatus } from './hydra-gateway';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -24,8 +25,8 @@ function createWindow(): void {
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-  // Open DevTools in development (uncomment if needed)
-  // mainWindow.webContents.openDevTools();
+  // Open DevTools in development
+  mainWindow.webContents.openDevTools();
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -273,6 +274,50 @@ ipcMain.handle('orchestrator:resetWorkflow', (_event, workflowId: string): Workf
   return orchestratorManager.resetWorkflow(workflowId);
 });
 
+// Hydra Gateway management
+ipcMain.handle('hydra:start', async (): Promise<GatewayStatus> => {
+  return gatewayManager.start();
+});
+
+ipcMain.handle('hydra:stop', async (): Promise<void> => {
+  return gatewayManager.stop();
+});
+
+ipcMain.handle('hydra:refresh', async (): Promise<GatewayStatus> => {
+  return gatewayManager.refresh();
+});
+
+ipcMain.handle('hydra:getStatus', (): GatewayStatus => {
+  return gatewayManager.getStatus();
+});
+
+ipcMain.handle('hydra:getTools', (): Array<{ name: string; serverName: string; description?: string }> => {
+  return gatewayManager.getTools();
+});
+
+ipcMain.handle('hydra:setPort', (_event, port: number): void => {
+  gatewayManager.setPort(port);
+});
+
+// Forward gateway events to renderer
+gatewayManager.on('started', (status: GatewayStatus) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('hydra:statusChange', status);
+  }
+});
+
+gatewayManager.on('stopped', () => {
+  if (mainWindow) {
+    mainWindow.webContents.send('hydra:statusChange', gatewayManager.getStatus());
+  }
+});
+
+gatewayManager.on('serverStateChange', (data: { serverId: string; serverName: string; status: string; error?: string }) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('hydra:serverStateChange', data);
+  }
+});
+
 app.whenReady().then(() => {
   createWindow();
 
@@ -283,9 +328,10 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
   terminalManager.closeAll();
   idleNotificationManager.cleanup();
+  await gatewayManager.stop();
   if (process.platform !== 'darwin') {
     app.quit();
   }
