@@ -158,6 +158,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('attachment:readImageAsBase64', filePath);
   },
 
+  // Claude Code hooks APIs
+  getClaudeHooks: (): Promise<any[]> => {
+    return ipcRenderer.invoke('claude:getHooks');
+  },
+
+  addClaudeHook: (eventName: string, matcher: string | undefined, hookConfig: any): Promise<any[]> => {
+    return ipcRenderer.invoke('claude:addHook', eventName, matcher, hookConfig);
+  },
+
+  updateClaudeHook: (
+    eventName: string,
+    entryIndex: number,
+    hookIndex: number,
+    newMatcher: string | undefined,
+    hookConfig: any
+  ): Promise<any[]> => {
+    return ipcRenderer.invoke('claude:updateHook', eventName, entryIndex, hookIndex, newMatcher, hookConfig);
+  },
+
+  removeClaudeHook: (eventName: string, entryIndex: number, hookIndex: number): Promise<any[]> => {
+    return ipcRenderer.invoke('claude:removeHook', eventName, entryIndex, hookIndex);
+  },
+
+  getClaudeSettingsPath: (): Promise<string> => {
+    return ipcRenderer.invoke('claude:getSettingsPath');
+  },
+
   // File drag & drop helper
   getPathForFile: (file: File): string => {
     return webUtils.getPathForFile(file);

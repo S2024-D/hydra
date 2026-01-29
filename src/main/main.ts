@@ -6,6 +6,7 @@ import { sessionManager, SessionData } from './session-manager';
 import { settingsManager, Settings } from './settings-manager';
 import { idleNotificationManager } from './idle-notification-manager';
 import { attachmentManager, Attachment } from './attachment-manager';
+import { claudeSettingsManager, FlattenedHook, HookConfig } from './claude-settings-manager';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -180,6 +181,44 @@ ipcMain.handle('attachment:checkFileExists', (_event, filePath: string): boolean
 
 ipcMain.handle('attachment:readImageAsBase64', (_event, filePath: string): string | null => {
   return attachmentManager.readImageAsBase64(filePath);
+});
+
+// Claude Code hooks management
+ipcMain.handle('claude:getHooks', (): FlattenedHook[] => {
+  return claudeSettingsManager.getHooks();
+});
+
+ipcMain.handle('claude:addHook', (
+  _event,
+  eventName: string,
+  matcher: string | undefined,
+  hookConfig: HookConfig
+): FlattenedHook[] => {
+  return claudeSettingsManager.addHook(eventName, matcher, hookConfig);
+});
+
+ipcMain.handle('claude:updateHook', (
+  _event,
+  eventName: string,
+  entryIndex: number,
+  hookIndex: number,
+  newMatcher: string | undefined,
+  hookConfig: HookConfig
+): FlattenedHook[] => {
+  return claudeSettingsManager.updateHook(eventName, entryIndex, hookIndex, newMatcher, hookConfig);
+});
+
+ipcMain.handle('claude:removeHook', (
+  _event,
+  eventName: string,
+  entryIndex: number,
+  hookIndex: number
+): FlattenedHook[] => {
+  return claudeSettingsManager.removeHook(eventName, entryIndex, hookIndex);
+});
+
+ipcMain.handle('claude:getSettingsPath', (): string => {
+  return claudeSettingsManager.getFilePath();
 });
 
 app.whenReady().then(() => {

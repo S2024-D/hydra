@@ -10,11 +10,35 @@ export interface Settings {
 
 export type SettingsUpdateCallback = (settings: Settings) => void;
 
+interface FlattenedHook {
+  id: string;
+  eventName: string;
+  entryIndex: number;
+  hookIndex: number;
+  matcher?: string;
+  type: 'command' | 'prompt';
+  command?: string;
+  prompt?: string;
+  timeout?: number;
+}
+
+const HOOK_EVENTS = [
+  { value: 'PreToolUse', label: 'PreToolUse', description: 'Before tool execution. Can block (exit 2) or modify.', needsMatcher: true },
+  { value: 'PostToolUse', label: 'PostToolUse', description: 'After tool completes successfully.', needsMatcher: true },
+  { value: 'Notification', label: 'Notification', description: 'On notifications (permission_prompt, idle_prompt).', needsMatcher: true },
+  { value: 'Stop', label: 'Stop', description: 'When Claude response completes.', needsMatcher: false },
+  { value: 'SessionStart', label: 'SessionStart', description: 'On session start/resume.', needsMatcher: false },
+  { value: 'SessionEnd', label: 'SessionEnd', description: 'On session end.', needsMatcher: false },
+  { value: 'UserPromptSubmit', label: 'UserPromptSubmit', description: 'When user submits prompt.', needsMatcher: false },
+];
+
 export class SettingsPanel {
   private element: HTMLElement;
   private isVisible = false;
   private settings: Settings | null = null;
   private onUpdate: SettingsUpdateCallback | null = null;
+  private claudeHooks: FlattenedHook[] = [];
+  private editingHook: FlattenedHook | null = null;
 
   constructor() {
     this.element = this.createPanelElement();
@@ -96,6 +120,20 @@ export class SettingsPanel {
             </div>
           </div>
 
+          <!-- Claude Code Hooks Section -->
+          <div class="settings-section">
+            <div class="settings-section-header">
+              <h3 class="settings-section-title">Claude Code Hooks</h3>
+              <button id="add-hook-btn" class="settings-button-small">+ Add Hook</button>
+            </div>
+            <p class="settings-hint" style="margin-bottom: 12px;">
+              Configure hooks for Claude Code CLI. Saved to ~/.claude/settings.json
+            </p>
+            <div id="claude-hooks-list" class="claude-hooks-list">
+              <!-- Hooks will be rendered here -->
+            </div>
+          </div>
+
           <!-- Keyboard Shortcuts Section -->
           <div class="settings-section">
             <h3 class="settings-section-title">Keyboard Shortcuts</h3>
@@ -145,6 +183,57 @@ export class SettingsPanel {
                 <span class="shortcut-key">&#8984;I</span>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hook Edit Dialog -->
+      <div id="hook-dialog" class="hook-dialog">
+        <div class="hook-dialog-backdrop"></div>
+        <div class="hook-dialog-container">
+          <div class="hook-dialog-header">
+            <h3 id="hook-dialog-title">Add Hook</h3>
+            <button class="hook-dialog-close">&times;</button>
+          </div>
+          <div class="hook-dialog-content">
+            <div class="hook-dialog-field">
+              <label>Event Type</label>
+              <select id="hook-event" class="settings-select">
+                ${HOOK_EVENTS.map(e => `<option value="${e.value}">${e.label}</option>`).join('')}
+              </select>
+              <span id="hook-event-desc" class="settings-hint"></span>
+            </div>
+            <div class="hook-dialog-field" id="hook-matcher-field">
+              <label>Matcher (Tool Pattern)</label>
+              <input type="text" id="hook-matcher" class="settings-input" placeholder="e.g., Edit|Write, Bash, *">
+              <span class="settings-hint">Regex supported. Examples: Bash, Edit|Write, Notebook.*</span>
+            </div>
+            <div class="hook-dialog-field">
+              <label>Type</label>
+              <select id="hook-type" class="settings-select">
+                <option value="command">Command</option>
+                <option value="prompt">Prompt (LLM-based)</option>
+              </select>
+            </div>
+            <div class="hook-dialog-field" id="hook-command-field">
+              <label>Command</label>
+              <textarea id="hook-command" class="settings-textarea" rows="3" placeholder="e.g., echo 'Hook triggered' >> ~/hook.log"></textarea>
+              <span class="settings-hint">Shell command to execute. Receives JSON via stdin.</span>
+            </div>
+            <div class="hook-dialog-field" id="hook-prompt-field" style="display: none;">
+              <label>Prompt</label>
+              <textarea id="hook-prompt" class="settings-textarea" rows="3" placeholder="Prompt for LLM-based hook..."></textarea>
+              <span class="settings-hint">Prompt to send to the LLM for evaluation.</span>
+            </div>
+            <div class="hook-dialog-field">
+              <label>Timeout (seconds)</label>
+              <input type="number" id="hook-timeout" class="settings-input" value="60" min="1" max="300">
+              <span class="settings-hint">Default: 60 seconds</span>
+            </div>
+          </div>
+          <div class="hook-dialog-footer">
+            <button id="hook-cancel-btn" class="settings-button-secondary">Cancel</button>
+            <button id="hook-save-btn" class="settings-button-primary">Save Hook</button>
           </div>
         </div>
       </div>
@@ -219,10 +308,250 @@ export class SettingsPanel {
     // Escape key to close
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.isVisible) {
-        e.preventDefault();
-        this.hide();
+        const hookDialog = this.element.querySelector('#hook-dialog') as HTMLElement;
+        if (hookDialog?.classList.contains('visible')) {
+          this.hideHookDialog();
+        } else {
+          e.preventDefault();
+          this.hide();
+        }
       }
     });
+
+    // Claude Hooks: Add button
+    this.element.querySelector('#add-hook-btn')?.addEventListener('click', () => {
+      this.showHookDialog();
+    });
+
+    // Hook dialog: Close button
+    this.element.querySelector('.hook-dialog-close')?.addEventListener('click', () => {
+      this.hideHookDialog();
+    });
+
+    // Hook dialog: Backdrop click
+    this.element.querySelector('.hook-dialog-backdrop')?.addEventListener('click', () => {
+      this.hideHookDialog();
+    });
+
+    // Hook dialog: Event type change
+    const hookEventSelect = this.element.querySelector('#hook-event') as HTMLSelectElement;
+    hookEventSelect?.addEventListener('change', () => {
+      this.updateHookDialogForEvent(hookEventSelect.value);
+    });
+
+    // Hook dialog: Type change
+    const hookTypeSelect = this.element.querySelector('#hook-type') as HTMLSelectElement;
+    hookTypeSelect?.addEventListener('change', () => {
+      const commandField = this.element.querySelector('#hook-command-field') as HTMLElement;
+      const promptField = this.element.querySelector('#hook-prompt-field') as HTMLElement;
+      if (hookTypeSelect.value === 'command') {
+        commandField.style.display = 'block';
+        promptField.style.display = 'none';
+      } else {
+        commandField.style.display = 'none';
+        promptField.style.display = 'block';
+      }
+    });
+
+    // Hook dialog: Cancel
+    this.element.querySelector('#hook-cancel-btn')?.addEventListener('click', () => {
+      this.hideHookDialog();
+    });
+
+    // Hook dialog: Save
+    this.element.querySelector('#hook-save-btn')?.addEventListener('click', () => {
+      this.saveHook();
+    });
+  }
+
+  private updateHookDialogForEvent(eventName: string): void {
+    const eventInfo = HOOK_EVENTS.find(e => e.value === eventName);
+    const descSpan = this.element.querySelector('#hook-event-desc') as HTMLElement;
+    const matcherField = this.element.querySelector('#hook-matcher-field') as HTMLElement;
+
+    if (eventInfo) {
+      descSpan.textContent = eventInfo.description;
+      matcherField.style.display = eventInfo.needsMatcher ? 'block' : 'none';
+    }
+  }
+
+  private showHookDialog(hook?: FlattenedHook): void {
+    const dialog = this.element.querySelector('#hook-dialog') as HTMLElement;
+    const title = this.element.querySelector('#hook-dialog-title') as HTMLElement;
+    const eventSelect = this.element.querySelector('#hook-event') as HTMLSelectElement;
+    const matcherInput = this.element.querySelector('#hook-matcher') as HTMLInputElement;
+    const typeSelect = this.element.querySelector('#hook-type') as HTMLSelectElement;
+    const commandTextarea = this.element.querySelector('#hook-command') as HTMLTextAreaElement;
+    const promptTextarea = this.element.querySelector('#hook-prompt') as HTMLTextAreaElement;
+    const timeoutInput = this.element.querySelector('#hook-timeout') as HTMLInputElement;
+
+    this.editingHook = hook || null;
+    title.textContent = hook ? 'Edit Hook' : 'Add Hook';
+
+    if (hook) {
+      eventSelect.value = hook.eventName;
+      matcherInput.value = hook.matcher || '';
+      typeSelect.value = hook.type;
+      commandTextarea.value = hook.command || '';
+      promptTextarea.value = hook.prompt || '';
+      timeoutInput.value = String(hook.timeout || 60);
+    } else {
+      eventSelect.value = 'PreToolUse';
+      matcherInput.value = '';
+      typeSelect.value = 'command';
+      commandTextarea.value = '';
+      promptTextarea.value = '';
+      timeoutInput.value = '60';
+    }
+
+    this.updateHookDialogForEvent(eventSelect.value);
+
+    // Show/hide command/prompt fields based on type
+    const commandField = this.element.querySelector('#hook-command-field') as HTMLElement;
+    const promptField = this.element.querySelector('#hook-prompt-field') as HTMLElement;
+    if (typeSelect.value === 'command') {
+      commandField.style.display = 'block';
+      promptField.style.display = 'none';
+    } else {
+      commandField.style.display = 'none';
+      promptField.style.display = 'block';
+    }
+
+    dialog.classList.add('visible');
+  }
+
+  private hideHookDialog(): void {
+    const dialog = this.element.querySelector('#hook-dialog') as HTMLElement;
+    dialog.classList.remove('visible');
+    this.editingHook = null;
+  }
+
+  private async saveHook(): Promise<void> {
+    const eventSelect = this.element.querySelector('#hook-event') as HTMLSelectElement;
+    const matcherInput = this.element.querySelector('#hook-matcher') as HTMLInputElement;
+    const typeSelect = this.element.querySelector('#hook-type') as HTMLSelectElement;
+    const commandTextarea = this.element.querySelector('#hook-command') as HTMLTextAreaElement;
+    const promptTextarea = this.element.querySelector('#hook-prompt') as HTMLTextAreaElement;
+    const timeoutInput = this.element.querySelector('#hook-timeout') as HTMLInputElement;
+
+    const eventName = eventSelect.value;
+    const eventInfo = HOOK_EVENTS.find(e => e.value === eventName);
+    const matcher = eventInfo?.needsMatcher ? (matcherInput.value.trim() || undefined) : undefined;
+    const type = typeSelect.value as 'command' | 'prompt';
+    const command = type === 'command' ? commandTextarea.value.trim() : undefined;
+    const prompt = type === 'prompt' ? promptTextarea.value.trim() : undefined;
+    const timeout = parseInt(timeoutInput.value) || 60;
+
+    if (type === 'command' && !command) {
+      alert('Please enter a command.');
+      return;
+    }
+    if (type === 'prompt' && !prompt) {
+      alert('Please enter a prompt.');
+      return;
+    }
+
+    const hookConfig = {
+      type,
+      command,
+      prompt,
+      timeout: timeout !== 60 ? timeout : undefined,
+    };
+
+    try {
+      if (this.editingHook) {
+        this.claudeHooks = await (window as any).electronAPI.updateClaudeHook(
+          this.editingHook.eventName,
+          this.editingHook.entryIndex,
+          this.editingHook.hookIndex,
+          matcher,
+          hookConfig
+        );
+      } else {
+        this.claudeHooks = await (window as any).electronAPI.addClaudeHook(eventName, matcher, hookConfig);
+      }
+      this.renderClaudeHooks();
+      this.hideHookDialog();
+    } catch (error) {
+      console.error('Failed to save hook:', error);
+      alert('Failed to save hook. Check console for details.');
+    }
+  }
+
+  private async deleteHook(hook: FlattenedHook): Promise<void> {
+    if (!confirm(`Delete this hook?\n\n${hook.eventName} · ${hook.matcher || '(no matcher)'}`)) {
+      return;
+    }
+
+    try {
+      this.claudeHooks = await (window as any).electronAPI.removeClaudeHook(
+        hook.eventName,
+        hook.entryIndex,
+        hook.hookIndex
+      );
+      this.renderClaudeHooks();
+    } catch (error) {
+      console.error('Failed to delete hook:', error);
+      alert('Failed to delete hook. Check console for details.');
+    }
+  }
+
+  private renderClaudeHooks(): void {
+    const container = this.element.querySelector('#claude-hooks-list') as HTMLElement;
+    if (!container) return;
+
+    if (this.claudeHooks.length === 0) {
+      container.innerHTML = `
+        <div class="claude-hooks-empty">
+          No hooks configured. Click "+ Add Hook" to create one.
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = this.claudeHooks.map(hook => `
+      <div class="claude-hook-item" data-hook-id="${hook.id}">
+        <div class="claude-hook-header">
+          <span class="claude-hook-event">${hook.eventName}</span>
+          ${hook.matcher ? `<span class="claude-hook-matcher">${hook.matcher}</span>` : ''}
+        </div>
+        <div class="claude-hook-command">${hook.type === 'command' ? hook.command : hook.prompt}</div>
+        <div class="claude-hook-actions">
+          <button class="claude-hook-edit" data-hook-id="${hook.id}">Edit</button>
+          <button class="claude-hook-delete" data-hook-id="${hook.id}">Delete</button>
+        </div>
+      </div>
+    `).join('');
+
+    // Add event listeners
+    container.querySelectorAll('.claude-hook-edit').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const hookId = (e.target as HTMLElement).dataset.hookId;
+        const hook = this.claudeHooks.find(h => h.id === hookId);
+        if (hook) {
+          this.showHookDialog(hook);
+        }
+      });
+    });
+
+    container.querySelectorAll('.claude-hook-delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const hookId = (e.target as HTMLElement).dataset.hookId;
+        const hook = this.claudeHooks.find(h => h.id === hookId);
+        if (hook) {
+          this.deleteHook(hook);
+        }
+      });
+    });
+  }
+
+  private async loadClaudeHooks(): Promise<void> {
+    try {
+      this.claudeHooks = await (window as any).electronAPI.getClaudeHooks();
+      this.renderClaudeHooks();
+    } catch (error) {
+      console.error('Failed to load Claude hooks:', error);
+    }
   }
 
   private notifyUpdate(): void {
@@ -275,6 +604,7 @@ export class SettingsPanel {
     this.settings = { ...settings };
     this.onUpdate = onUpdate;
     this.updateUI();
+    this.loadClaudeHooks();
     this.isVisible = true;
     this.element.classList.add('visible');
   }

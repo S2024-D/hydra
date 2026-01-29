@@ -1048,6 +1048,282 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
 
+    /* Claude Hooks Section */
+    .settings-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .settings-section-header .settings-section-title {
+      margin-bottom: 0;
+    }
+
+    .settings-button-small {
+      padding: 4px 10px;
+      font-size: 12px;
+      background: var(--accent-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .settings-button-small:hover {
+      background: var(--accent-hover);
+    }
+
+    .claude-hooks-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .claude-hooks-empty {
+      padding: 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+      background: var(--bg-primary);
+      border-radius: 6px;
+      border: 1px dashed var(--border-color);
+    }
+
+    .claude-hook-item {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+
+    .claude-hook-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .claude-hook-event {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-hover);
+      background: rgba(0, 122, 204, 0.15);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .claude-hook-matcher {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+
+    .claude-hook-command {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-family: monospace;
+      background: var(--bg-tertiary);
+      padding: 6px 8px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      word-break: break-all;
+      max-height: 60px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .claude-hook-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .claude-hook-edit,
+    .claude-hook-delete {
+      padding: 4px 10px;
+      font-size: 11px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      cursor: pointer;
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+    }
+
+    .claude-hook-edit:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .claude-hook-delete:hover {
+      background: #5a1d1d;
+      border-color: #8b3030;
+      color: #ff6b6b;
+    }
+
+    /* Hook Dialog */
+    .hook-dialog {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 2500;
+    }
+
+    .hook-dialog.visible {
+      display: block;
+    }
+
+    .hook-dialog-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+    }
+
+    .hook-dialog-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 480px;
+      max-width: 90%;
+      max-height: 85vh;
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hook-dialog-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .hook-dialog-header h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .hook-dialog-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 22px;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .hook-dialog-close:hover {
+      color: var(--text-primary);
+    }
+
+    .hook-dialog-content {
+      padding: 18px;
+      overflow-y: auto;
+    }
+
+    .hook-dialog-field {
+      margin-bottom: 16px;
+    }
+
+    .hook-dialog-field:last-child {
+      margin-bottom: 0;
+    }
+
+    .hook-dialog-field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .settings-input {
+      width: 100%;
+      padding: 8px 10px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-primary);
+      font-size: 13px;
+    }
+
+    .settings-input:focus {
+      outline: none;
+      border-color: var(--accent-hover);
+    }
+
+    .settings-textarea {
+      width: 100%;
+      padding: 8px 10px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-primary);
+      font-size: 13px;
+      font-family: monospace;
+      resize: vertical;
+      min-height: 70px;
+    }
+
+    .settings-textarea:focus {
+      outline: none;
+      border-color: var(--accent-hover);
+    }
+
+    .hook-dialog-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 14px 18px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .settings-button-secondary {
+      padding: 8px 16px;
+      font-size: 13px;
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .settings-button-secondary:hover {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+    }
+
+    .settings-button-primary {
+      padding: 8px 16px;
+      font-size: 13px;
+      background: var(--accent-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .settings-button-primary:hover {
+      background: var(--accent-hover);
+    }
+
     /* Terminal Search Bar */
     .terminal-search-bar {
       display: none;
