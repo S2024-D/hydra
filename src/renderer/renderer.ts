@@ -1610,6 +1610,9 @@ class HydraApp {
     } else {
       this.renderSidebar();
     }
+
+    // 삭제된 프로젝트 데이터를 세션에서 즉시 제거
+    this.saveSession();
   }
 
   private async createTerminalInActiveProject(): Promise<void> {
