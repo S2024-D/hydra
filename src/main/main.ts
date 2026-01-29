@@ -1,5 +1,16 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron';
 import * as path from 'path';
+
+// EPIPE 에러 무시 (프로세스 종료 중 발생)
+process.stdout.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EPIPE') return;
+  throw err;
+});
+process.stderr.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EPIPE') return;
+  throw err;
+});
+
 import { terminalManager } from './terminal-manager';
 import { projectManager, Project } from './project-manager';
 import { sessionManager, SessionData } from './session-manager';
