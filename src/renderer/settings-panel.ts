@@ -34,6 +34,8 @@ const HOOK_EVENTS = [
   { value: 'UserPromptSubmit', label: 'UserPromptSubmit', description: 'When user submits prompt.', needsMatcher: false },
 ];
 
+type TabId = 'general' | 'appearance' | 'hooks' | 'shortcuts';
+
 export class SettingsPanel {
   private element: HTMLElement;
   private isVisible = false;
@@ -41,6 +43,7 @@ export class SettingsPanel {
   private onUpdate: SettingsUpdateCallback | null = null;
   private claudeHooks: FlattenedHook[] = [];
   private editingHook: FlattenedHook | null = null;
+  private activeTab: TabId = 'general';
 
   constructor() {
     this.element = this.createPanelElement();
@@ -53,90 +56,87 @@ export class SettingsPanel {
     panel.className = 'settings-panel';
     panel.innerHTML = `
       <div class="settings-panel-backdrop"></div>
-      <div class="settings-panel-container">
+      <div class="settings-panel-container settings-panel-tabbed">
         <div class="settings-panel-header">
           <h2 class="settings-panel-title">Settings</h2>
           <button class="settings-panel-close">&times;</button>
         </div>
+
+        <!-- Tab Navigation -->
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-tab="general">General</button>
+          <button class="settings-tab" data-tab="appearance">Appearance</button>
+          <button class="settings-tab" data-tab="hooks">Claude Hooks</button>
+          <button class="settings-tab" data-tab="shortcuts">Shortcuts</button>
+        </div>
+
         <div class="settings-panel-content">
-          <!-- Appearance Section -->
-          <div class="settings-section">
-            <h3 class="settings-section-title">Appearance</h3>
-
-            <div class="settings-item">
-              <label class="settings-label">Theme</label>
-              <div class="settings-control">
-                <select id="setting-theme" class="settings-select">
-                  <option value="dark">Dark</option>
-                  <option value="light">Light</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="settings-item">
-              <label class="settings-label">Font Family</label>
-              <div class="settings-control">
-                <select id="setting-font-family" class="settings-select">
-                  <option value="Menlo, Monaco, 'Courier New', monospace">Menlo</option>
-                  <option value="Monaco, Menlo, 'Courier New', monospace">Monaco</option>
-                  <option value="'Courier New', Courier, monospace">Courier New</option>
-                  <option value="'SF Mono', Menlo, Monaco, monospace">SF Mono</option>
-                  <option value="'Fira Code', Menlo, Monaco, monospace">Fira Code</option>
-                  <option value="Consolas, 'Courier New', monospace">Consolas</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="settings-item">
-              <label class="settings-label">Font Size</label>
-              <div class="settings-control settings-control-row">
-                <input type="range" id="setting-font-size" class="settings-range" min="8" max="24" step="1">
-                <span id="setting-font-size-value" class="settings-value">14px</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Notifications Section -->
-          <div class="settings-section">
-            <h3 class="settings-section-title">Notifications</h3>
-
-            <div class="settings-item">
-              <label class="settings-label">
-                Idle Terminal Notifications
-                <span class="settings-hint">Get notified when an inactive terminal has output</span>
-              </label>
-              <div class="settings-control">
-                <label class="settings-toggle">
-                  <input type="checkbox" id="setting-idle-notification">
-                  <span class="settings-toggle-slider"></span>
+          <!-- General Tab -->
+          <div class="settings-tab-content active" data-tab="general">
+            <div class="settings-section">
+              <h3 class="settings-section-title">Notifications</h3>
+              <div class="settings-item">
+                <label class="settings-label">
+                  Idle Terminal Notifications
+                  <span class="settings-hint">Get notified when an inactive terminal has output</span>
                 </label>
+                <div class="settings-control">
+                  <label class="settings-toggle">
+                    <input type="checkbox" id="setting-idle-notification">
+                    <span class="settings-toggle-slider"></span>
+                  </label>
+                </div>
               </div>
-            </div>
-
-            <div class="settings-item" id="idle-timeout-setting">
-              <label class="settings-label">Idle Timeout</label>
-              <div class="settings-control settings-control-row">
-                <input type="range" id="setting-idle-timeout" class="settings-range" min="1" max="30" step="1">
-                <span id="setting-idle-timeout-value" class="settings-value">3s</span>
+              <div class="settings-item" id="idle-timeout-setting">
+                <label class="settings-label">Idle Timeout</label>
+                <div class="settings-control settings-control-row">
+                  <input type="range" id="setting-idle-timeout" class="settings-range" min="1" max="30" step="1">
+                  <span id="setting-idle-timeout-value" class="settings-value">3s</span>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- Claude Code Hooks Section -->
-          <div class="settings-section">
-            <div class="settings-section-header">
-              <h3 class="settings-section-title">Claude Code Hooks</h3>
-              <button id="add-hook-btn" class="settings-button-small">+ Add Hook</button>
+          <!-- Appearance Tab -->
+          <div class="settings-tab-content" data-tab="appearance">
+            <div class="settings-section">
+              <h3 class="settings-section-title">Theme</h3>
+              <div class="settings-item">
+                <label class="settings-label">App Theme</label>
+                <div class="settings-control">
+                  <select id="setting-theme" class="settings-select">
+                    <option value="dark">Dark</option>
+                    <option value="light">Light</option>
+                  </select>
+                </div>
+              </div>
             </div>
-            <p class="settings-hint" style="margin-bottom: 12px;">
-              Configure hooks for Claude Code CLI. Saved to ~/.claude/settings.json
-            </p>
-            <div id="claude-hooks-list" class="claude-hooks-list">
-              <!-- Hooks will be rendered here -->
+            <div class="settings-section">
+              <h3 class="settings-section-title">Font</h3>
+              <div class="settings-item">
+                <label class="settings-label">Font Family</label>
+                <div class="settings-control">
+                  <select id="setting-font-family" class="settings-select">
+                    <option value="Menlo, Monaco, 'Courier New', monospace">Menlo</option>
+                    <option value="Monaco, Menlo, 'Courier New', monospace">Monaco</option>
+                    <option value="'Courier New', Courier, monospace">Courier New</option>
+                    <option value="'SF Mono', Menlo, Monaco, monospace">SF Mono</option>
+                    <option value="'Fira Code', Menlo, Monaco, monospace">Fira Code</option>
+                    <option value="Consolas, 'Courier New', monospace">Consolas</option>
+                  </select>
+                </div>
+              </div>
+              <div class="settings-item">
+                <label class="settings-label">Font Size</label>
+                <div class="settings-control settings-control-row">
+                  <input type="range" id="setting-font-size" class="settings-range" min="8" max="24" step="1">
+                  <span id="setting-font-size-value" class="settings-value">14px</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- MCP Section -->
+          <!-- MCP Section (in General tab area) -->
           <div class="settings-section">
             <h3 class="settings-section-title">MCP Servers</h3>
             <div class="settings-item">
@@ -149,54 +149,91 @@ export class SettingsPanel {
               </div>
             </div>
           </div>
+          </div>
 
-          <!-- Keyboard Shortcuts Section -->
-          <div class="settings-section">
-            <h3 class="settings-section-title">Keyboard Shortcuts</h3>
-            <div class="shortcuts-list">
-              <div class="shortcut-item">
-                <span class="shortcut-label">New Terminal</span>
-                <span class="shortcut-key">&#8984;T</span>
+          <!-- Claude Hooks Tab -->
+          <div class="settings-tab-content" data-tab="hooks">
+            <div class="settings-section">
+              <div class="settings-section-header">
+                <h3 class="settings-section-title">Claude Code Hooks</h3>
+                <button id="add-hook-btn" class="settings-button-small">+ Add Hook</button>
               </div>
-              <div class="shortcut-item">
-                <span class="shortcut-label">Close Terminal</span>
-                <span class="shortcut-key">&#8984;W</span>
+              <p class="settings-hint" style="margin-bottom: 12px;">
+                Configure hooks for Claude Code CLI. Saved to ~/.claude/settings.json
+              </p>
+              <div id="claude-hooks-list" class="claude-hooks-list">
+                <!-- Hooks will be rendered here -->
               </div>
-              <div class="shortcut-item">
-                <span class="shortcut-label">Split Right</span>
-                <span class="shortcut-key">&#8984;\\</span>
+            </div>
+          </div>
+
+          <!-- Shortcuts Tab -->
+          <div class="settings-tab-content" data-tab="shortcuts">
+            <div class="settings-section">
+              <h3 class="settings-section-title">Terminal</h3>
+              <div class="shortcuts-list">
+                <div class="shortcut-item">
+                  <span class="shortcut-label">New Terminal</span>
+                  <span class="shortcut-key">⌘T</span>
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-label">Close Terminal</span>
+                  <span class="shortcut-key">⌘W</span>
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-label">Split Right</span>
+                  <span class="shortcut-key">⌘\\</span>
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-label">Split Down</span>
+                  <span class="shortcut-key">⌘⇧\\</span>
+                </div>
               </div>
-              <div class="shortcut-item">
-                <span class="shortcut-label">Split Down</span>
-                <span class="shortcut-key">&#8984;&#8679;\\</span>
+            </div>
+            <div class="settings-section">
+              <h3 class="settings-section-title">Navigation</h3>
+              <div class="shortcuts-list">
+                <div class="shortcut-item">
+                  <span class="shortcut-label">Command Palette</span>
+                  <span class="shortcut-key">⌘⇧P</span>
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-label">Settings</span>
+                  <span class="shortcut-key">⌘,</span>
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-label">Next Project</span>
+                  <span class="shortcut-key">⌘⌥]</span>
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-label">Previous Project</span>
+                  <span class="shortcut-key">⌘⌥[</span>
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-label">Switch Terminal (MRU)</span>
+                  <span class="shortcut-key">⌃Tab</span>
+                </div>
               </div>
-              <div class="shortcut-item">
-                <span class="shortcut-label">Command Palette</span>
-                <span class="shortcut-key">&#8984;&#8679;P</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-label">Settings</span>
-                <span class="shortcut-key">&#8984;,</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-label">Next Project</span>
-                <span class="shortcut-key">&#8984;&#8997;]</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-label">Previous Project</span>
-                <span class="shortcut-key">&#8984;&#8997;[</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-label">Switch Terminal (MRU)</span>
-                <span class="shortcut-key">&#8963;Tab</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-label">Focus Panel 1/2/3</span>
-                <span class="shortcut-key">&#8984;1/2/3</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-label">Image Attachments</span>
-                <span class="shortcut-key">&#8984;I</span>
+            </div>
+            <div class="settings-section">
+              <h3 class="settings-section-title">View</h3>
+              <div class="shortcuts-list">
+                <div class="shortcut-item">
+                  <span class="shortcut-label">Focus Panel 1/2/3</span>
+                  <span class="shortcut-key">⌘1/2/3</span>
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-label">Toggle Single/Multi View</span>
+                  <span class="shortcut-key">⌘⇧M</span>
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-label">Image Attachments</span>
+                  <span class="shortcut-key">⌘I</span>
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-label">Find in Terminal</span>
+                  <span class="shortcut-key">⌘F</span>
+                </div>
               </div>
               <div class="shortcut-item">
                 <span class="shortcut-label">MCP Server Settings</span>
@@ -261,7 +298,34 @@ export class SettingsPanel {
     return panel;
   }
 
+  private switchTab(tabId: TabId): void {
+    this.activeTab = tabId;
+
+    // Update tab buttons
+    this.element.querySelectorAll('.settings-tab').forEach(tab => {
+      tab.classList.toggle('active', tab.getAttribute('data-tab') === tabId);
+    });
+
+    // Update tab contents
+    this.element.querySelectorAll('.settings-tab-content').forEach(content => {
+      content.classList.toggle('active', content.getAttribute('data-tab') === tabId);
+    });
+
+    // Load hooks when switching to hooks tab
+    if (tabId === 'hooks') {
+      this.loadClaudeHooks();
+    }
+  }
+
   private setupEventListeners(): void {
+    // Tab switching
+    this.element.querySelectorAll('.settings-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabId = tab.getAttribute('data-tab') as TabId;
+        if (tabId) this.switchTab(tabId);
+      });
+    });
+
     // Close button
     this.element.querySelector('.settings-panel-close')?.addEventListener('click', () => {
       this.hide();
@@ -314,7 +378,7 @@ export class SettingsPanel {
     });
 
     // Idle timeout slider
-    const idleTimeoutSlider = this.element.querySelector('#setting-idle-timeout') as HTMLInputElement;
+    const idleTimeoutSlider = this.element.querySelector('#idle-timeout') as HTMLInputElement;
     const idleTimeoutValue = this.element.querySelector('#setting-idle-timeout-value') as HTMLSpanElement;
     idleTimeoutSlider?.addEventListener('input', () => {
       const timeout = parseInt(idleTimeoutSlider.value);
@@ -630,7 +694,7 @@ export class SettingsPanel {
     this.settings = { ...settings };
     this.onUpdate = onUpdate;
     this.updateUI();
-    this.loadClaudeHooks();
+    this.switchTab('general');
     this.isVisible = true;
     this.element.classList.add('visible');
   }
