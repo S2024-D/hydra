@@ -77,11 +77,8 @@ export class IdleNotificationManager {
       state.notificationSent = false;
     }
 
-    // Clear attention state when activity resumes
-    if (state.needsAttention) {
-      state.needsAttention = false;
-      this.notifyAttentionChange();
-    }
+    // Note: attention is NOT cleared here - it should only be cleared
+    // when user explicitly focuses on the terminal (via clearAttention)
 
     state.lastActivityTime = Date.now();
 
