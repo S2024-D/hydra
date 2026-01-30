@@ -1205,8 +1205,7 @@ class HydraApp {
     window.electronAPI.onAttentionChange((terminalIds: string[]) => {
       this.attentionTerminals = new Set(terminalIds);
       this.renderSidebar();
-      // Note: splitManager.render() removed to prevent focus loss
-      // Sidebar update is sufficient for attention badge display
+      this.splitManager.updateTabAttention();
     });
 
     window.addEventListener('resize', () => {

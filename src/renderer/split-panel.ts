@@ -520,6 +520,33 @@ export class SplitPanelManager {
     return groups[index] || null;
   }
 
+  updateTabAttention(): void {
+    const tabs = this.container.querySelectorAll('.panel-tab');
+    tabs.forEach((tab) => {
+      const terminalId = tab.getAttribute('data-terminal-id');
+      if (!terminalId) return;
+
+      const hasAttention = this.callbacks.hasAttention?.(terminalId) ?? false;
+
+      // Toggle class
+      tab.classList.toggle('needs-attention', hasAttention);
+
+      // Update indicator
+      const tabName = tab.querySelector('.panel-tab-name');
+      if (!tabName) return;
+
+      let indicator = tabName.querySelector('.attention-indicator');
+      if (hasAttention && !indicator) {
+        indicator = document.createElement('span');
+        indicator.className = 'attention-indicator';
+        indicator.textContent = '●';
+        tabName.prepend(indicator);
+      } else if (!hasAttention && indicator) {
+        indicator.remove();
+      }
+    });
+  }
+
   render(): void {
     // Collect all terminal elements
     const terminalElements = new Map<string, HTMLElement>();
