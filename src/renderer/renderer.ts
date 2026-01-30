@@ -9,6 +9,7 @@ import { snippetManager } from './snippets';
 import { attachmentPanel } from './attachment-panel';
 import { orchestratorPanel } from './orchestrator-panel';
 import { hydraStatusPanel } from './hydra-status';
+import { sidebarManager } from './sidebar-collapse';
 
 interface ProjectSplitState {
   projectId: string | null;
@@ -1077,6 +1078,15 @@ class HydraApp {
       shortcut: '⌘⇧H',
       keybinding: { key: 'h', metaKey: true, shiftKey: true },
       action: () => this.showHydraGateway(),
+    });
+
+    commandRegistry.register({
+      id: 'view.toggleSidebar',
+      label: 'Toggle Sidebar',
+      category: 'View',
+      shortcut: '⌘B',
+      keybinding: { key: 'b', metaKey: true },
+      action: () => { sidebarManager.toggle(); },
     });
   }
 

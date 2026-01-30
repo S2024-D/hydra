@@ -57,6 +57,15 @@
       border-right: 1px solid var(--border-color);
       display: flex;
       flex-direction: column;
+      transition: width 0.2s ease, opacity 0.2s ease;
+    }
+
+    /* Sidebar Collapsed */
+    body.sidebar-collapsed #sidebar {
+      width: 0;
+      overflow: hidden;
+      opacity: 0;
+      border-right: none;
     }
 
     .sidebar-header {
