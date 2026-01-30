@@ -7,6 +7,7 @@ import { settingsPanel } from './settings-panel';
 import { terminalSearch } from './terminal-search';
 import { snippetManager } from './snippets';
 import { attachmentPanel } from './attachment-panel';
+import { sidebarManager } from './sidebar-collapse';
 
 interface ProjectSplitState {
   projectId: string | null;
@@ -1018,6 +1019,15 @@ class HydraApp {
       label: 'Multi View (Split)',
       category: 'View',
       action: () => this.setViewMode('multi'),
+    });
+
+    commandRegistry.register({
+      id: 'view.toggleSidebar',
+      label: 'Toggle Sidebar',
+      category: 'View',
+      shortcut: '⌘B',
+      keybinding: { key: 'b', metaKey: true },
+      action: () => { sidebarManager.toggle(); },
     });
   }
 
