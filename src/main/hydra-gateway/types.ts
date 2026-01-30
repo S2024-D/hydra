@@ -147,3 +147,47 @@ export interface StreamableHTTPResponse {
   headers: Record<string, string>;
   body: JsonRpcResponse | JsonRpcResponse[];
 }
+
+// Hook Types for Claude Settings Integration
+export interface HookConfig {
+  type: 'command' | 'prompt';
+  command?: string;
+  prompt?: string;
+  timeout?: number;
+}
+
+export interface FlattenedHook {
+  id: string;
+  eventName: string;
+  entryIndex: number;
+  hookIndex: number;
+  matcher?: string;
+  type: 'command' | 'prompt';
+  command?: string;
+  prompt?: string;
+  timeout?: number;
+}
+
+export interface HooksListResult {
+  hooks: FlattenedHook[];
+}
+
+export interface HooksAddParams {
+  eventName: string;
+  matcher?: string;
+  hookConfig: HookConfig;
+}
+
+export interface HooksUpdateParams {
+  eventName: string;
+  entryIndex: number;
+  hookIndex: number;
+  newMatcher?: string;
+  hookConfig: HookConfig;
+}
+
+export interface HooksRemoveParams {
+  eventName: string;
+  entryIndex: number;
+  hookIndex: number;
+}

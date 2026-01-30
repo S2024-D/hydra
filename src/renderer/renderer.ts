@@ -8,7 +8,6 @@ import { terminalSearch } from './terminal-search';
 import { snippetManager } from './snippets';
 import { attachmentPanel } from './attachment-panel';
 import { orchestratorPanel } from './orchestrator-panel';
-import { hydraStatusPanel } from './hydra-status';
 import { sidebarManager } from './sidebar-collapse';
 
 interface ProjectSplitState {
@@ -1072,12 +1071,12 @@ class HydraApp {
     });
 
     commandRegistry.register({
-      id: 'view.hydraGateway',
-      label: 'Hydra MCP Gateway',
+      id: 'view.mcpSettings',
+      label: 'MCP Servers & Gateway',
       category: 'View',
       shortcut: '⌘⇧H',
       keybinding: { key: 'h', metaKey: true, shiftKey: true },
-      action: () => this.showHydraGateway(),
+      action: () => this.showMcpSettings(),
     });
 
     commandRegistry.register({
@@ -1145,8 +1144,26 @@ class HydraApp {
     orchestratorPanel.toggle();
   }
 
-  private showHydraGateway(): void {
-    hydraStatusPanel.toggle();
+  private showMcpSettings(): void {
+    if (!this.settings) return;
+    settingsPanel.showTab('mcp', this.settings, async (newSettings) => {
+      if (newSettings.theme !== this.settings?.theme) {
+        this.settings = await window.electronAPI.setTheme(newSettings.theme);
+      }
+      if (newSettings.fontFamily !== this.settings?.fontFamily ||
+          newSettings.fontSize !== this.settings?.fontSize) {
+        this.settings = await window.electronAPI.setFont(newSettings.fontFamily, newSettings.fontSize);
+      }
+      if (newSettings.idleNotification.enabled !== this.settings?.idleNotification?.enabled ||
+          newSettings.idleNotification.timeoutSeconds !== this.settings?.idleNotification?.timeoutSeconds) {
+        this.settings = await window.electronAPI.setIdleNotification(
+          newSettings.idleNotification.enabled,
+          newSettings.idleNotification.timeoutSeconds
+        );
+      }
+      this.applyTheme();
+      this.fitAllTerminals();
+    });
   }
 
   private toggleViewMode(): void {

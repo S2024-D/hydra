@@ -2393,6 +2393,135 @@
       color: var(--text-primary);
     }
 
+    /* Hydra Gateway Styles in Settings */
+    .hydra-gateway-section {
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .hydra-gateway-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hydra-status-badge {
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .hydra-status-badge.stopped {
+      background: #4a4a4a;
+      color: #aaa;
+    }
+
+    .hydra-status-badge.running {
+      background: #1a472a;
+      color: #4ade80;
+    }
+
+    .hydra-connection-info {
+      margin-top: 12px;
+      padding: 12px;
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+    }
+
+    .hydra-url-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .hydra-url-row code {
+      flex: 1;
+      padding: 6px 10px;
+      background: var(--bg-secondary);
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .hydra-tools-section {
+      margin-top: 12px;
+    }
+
+    .hydra-tools-section details {
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .hydra-tools-section summary {
+      padding: 10px 12px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .hydra-tools-section summary:hover {
+      background: var(--bg-secondary);
+    }
+
+    .hydra-tools-list {
+      padding: 8px 12px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .hydra-tools-group {
+      margin-bottom: 12px;
+    }
+
+    .hydra-tools-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .hydra-tools-group-header {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    .hydra-tool-item {
+      padding: 4px 0;
+      font-size: 13px;
+    }
+
+    .hydra-tool-name {
+      color: var(--text-primary);
+      font-family: monospace;
+    }
+
+    .hydra-tool-desc {
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-left: 8px;
+    }
+
+    .hydra-tools-empty {
+      padding: 12px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .settings-button-danger {
+      background: #7f1d1d;
+      color: #fca5a5;
+    }
+
+    .settings-button-danger:hover {
+      background: #991b1b;
+    }
+
     .mcp-server-list {
       max-height: 400px;
       overflow-y: auto;
@@ -3977,6 +4106,51 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
+    /* Hooks Section */
+    .hydra-hooks-section { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color); }
+    .hydra-hooks-section .hydra-section-header { display: flex; align-items: center; gap: 8px; }
+    .hydra-hook-count { color: var(--text-muted); font-size: 12px; }
+    .hydra-btn-add-hook { margin-left: auto; padding: 4px 8px; font-size: 11px; background: var(--primary-color); color: white; }
+    .hydra-btn-add-hook:hover { background: var(--primary-hover); }
+    .hydra-hook-list { margin-top: 8px; }
+    .hydra-hook-group { margin-bottom: 12px; }
+    .hydra-hook-group:last-child { margin-bottom: 0; }
+    .hydra-hook-group-header { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; padding: 4px 8px; background: var(--bg-tertiary); border-radius: 4px; }
+    .hydra-hook-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px; }
+    .hydra-hook-item:last-child { margin-bottom: 0; }
+    .hydra-hook-info { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+    .hydra-hook-type { padding: 2px 6px; font-size: 10px; font-weight: 600; border-radius: 3px; text-transform: uppercase; }
+    .hydra-hook-type.command { background: #2d4a3e; color: #7dd3a8; }
+    .hydra-hook-type.prompt { background: #3d3a4a; color: #b8a8d8; }
+    .hydra-hook-matcher-badge { padding: 2px 6px; font-size: 10px; background: var(--bg-tertiary); color: var(--text-secondary); border-radius: 3px; font-family: monospace; }
+    .hydra-hook-content { flex: 1; font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hydra-hook-timeout-badge { padding: 2px 6px; font-size: 10px; background: var(--bg-tertiary); color: var(--text-muted); border-radius: 3px; }
+    .hydra-hook-actions { display: flex; gap: 4px; margin-left: 8px; }
+    .hydra-btn-icon { width: 24px; height: 24px; padding: 0; border: none; background: transparent; color: var(--text-muted); cursor: pointer; border-radius: 4px; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+    .hydra-btn-icon:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+    .hydra-btn-delete-hook:hover { color: #f87171; }
+    /* Hook Modal */
+    .hydra-hook-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1001; display: none; align-items: center; justify-content: center; }
+    .hydra-hook-modal.visible { display: flex; }
+    .hydra-hook-modal-backdrop { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); }
+    .hydra-hook-modal-container { position: relative; width: 420px; max-width: 90vw; max-height: 80vh; background: var(--bg-primary); border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4); display: flex; flex-direction: column; }
+    .hydra-hook-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border-color); }
+    .hydra-hook-modal-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--text-primary); }
+    .hydra-hook-modal-close { width: 28px; height: 28px; border: none; background: transparent; color: var(--text-muted); font-size: 20px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+    .hydra-hook-modal-close:hover { background: var(--bg-secondary); color: var(--text-primary); }
+    .hydra-hook-modal-content { padding: 20px; overflow-y: auto; }
+    .hydra-hook-form-group { margin-bottom: 16px; }
+    .hydra-hook-form-group:last-child { margin-bottom: 0; }
+    .hydra-hook-form-group label { display: block; font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+    .hydra-hook-form-group input, .hydra-hook-form-group select, .hydra-hook-form-group textarea { width: 100%; padding: 8px 12px; font-size: 13px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); outline: none; box-sizing: border-box; }
+    .hydra-hook-form-group input:focus, .hydra-hook-form-group select:focus, .hydra-hook-form-group textarea:focus { border-color: var(--primary-color); }
+    .hydra-hook-form-group textarea { resize: vertical; min-height: 60px; font-family: inherit; }
+    .hydra-hook-modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 20px; border-top: 1px solid var(--border-color); }
+    .hydra-btn-cancel { background: var(--bg-secondary); color: var(--text-primary); }
+    .hydra-btn-cancel:hover { background: var(--bg-tertiary); }
+    .hydra-btn-save { background: var(--primary-color); color: white; }
+    .hydra-btn-save:hover { background: var(--primary-hover); }
   </style>
 </head>
 <body>

@@ -148,6 +148,10 @@ export class SettingsPanel {
   private selectedMcpType: string | null = null;
   private importedMcpSchema: MCPServerSchema | null = null;
 
+  // Hydra Gateway state
+  private hydraStatus: { running: boolean; port: number; servers: Array<{ id: string; name: string; status: string; toolCount: number; error?: string }> } | null = null;
+  private hydraTools: Array<{ name: string; serverName: string; description?: string }> = [];
+
   constructor() {
     this.element = this.createPanelElement();
     document.body.appendChild(this.element);
@@ -242,6 +246,35 @@ export class SettingsPanel {
 
           <!-- MCP Servers Tab -->
           <div class="settings-tab-content" data-tab="mcp">
+            <!-- Hydra Gateway Section -->
+            <div class="settings-section hydra-gateway-section">
+              <div class="settings-section-header">
+                <h3 class="settings-section-title">Hydra MCP Gateway</h3>
+                <div class="hydra-gateway-controls">
+                  <span id="hydra-status-indicator" class="hydra-status-badge stopped">Stopped</span>
+                  <button id="hydra-start-btn" class="settings-button-small settings-button-primary">Start</button>
+                  <button id="hydra-stop-btn" class="settings-button-small settings-button-danger" style="display:none;">Stop</button>
+                  <button id="hydra-refresh-btn" class="settings-button-small" style="display:none;">Refresh</button>
+                </div>
+              </div>
+              <div id="hydra-connection-info" class="hydra-connection-info" style="display:none;">
+                <div class="hydra-url-row">
+                  <code id="hydra-url">http://localhost:3999/mcp</code>
+                  <button id="hydra-copy-btn" class="settings-button-small">Copy</button>
+                </div>
+                <p class="settings-hint">
+                  Add to Claude CLI: <code>claude mcp add --transport http hydra http://localhost:3999/mcp</code>
+                </p>
+              </div>
+              <div id="hydra-tools-section" class="hydra-tools-section" style="display:none;">
+                <details>
+                  <summary><span id="hydra-tools-count">0</span> tools available</summary>
+                  <div id="hydra-tools-list" class="hydra-tools-list"></div>
+                </details>
+              </div>
+            </div>
+
+            <!-- MCP Servers List Section -->
             <div class="settings-section">
               <div class="settings-section-header">
                 <h3 class="settings-section-title">MCP Servers</h3>
@@ -436,6 +469,7 @@ export class SettingsPanel {
       this.loadClaudeHooks();
     } else if (tabId === 'mcp') {
       this.loadMcpServers();
+      this.loadHydraStatus();
     }
   }
 
@@ -575,6 +609,20 @@ export class SettingsPanel {
       this.saveHook();
     });
 
+    // Hydra Gateway buttons
+    this.element.querySelector('#hydra-start-btn')?.addEventListener('click', () => {
+      this.startHydraGateway();
+    });
+    this.element.querySelector('#hydra-stop-btn')?.addEventListener('click', () => {
+      this.stopHydraGateway();
+    });
+    this.element.querySelector('#hydra-refresh-btn')?.addEventListener('click', () => {
+      this.refreshHydraGateway();
+    });
+    this.element.querySelector('#hydra-copy-btn')?.addEventListener('click', () => {
+      this.copyHydraUrl();
+    });
+
     // MCP: Add server button
     this.element.querySelector('#add-mcp-server-btn')?.addEventListener('click', () => {
       this.showMcpDialog();
@@ -595,6 +643,145 @@ export class SettingsPanel {
         this.renderMcpDialogContent();
       }
     });
+  }
+
+  // ==================== Hydra Gateway Methods ====================
+
+  private async loadHydraStatus(): Promise<void> {
+    try {
+      this.hydraStatus = await window.electronAPI.hydraGetStatus();
+      this.updateHydraUI();
+      if (this.hydraStatus?.running) {
+        await this.loadHydraTools();
+      }
+    } catch (error) {
+      console.error('Failed to load Hydra status:', error);
+    }
+  }
+
+  private async loadHydraTools(): Promise<void> {
+    try {
+      this.hydraTools = await window.electronAPI.hydraGetTools();
+      this.updateHydraToolsUI();
+    } catch (error) {
+      console.error('Failed to load Hydra tools:', error);
+    }
+  }
+
+  private async startHydraGateway(): Promise<void> {
+    const btn = this.element.querySelector('#hydra-start-btn') as HTMLButtonElement;
+    if (btn) { btn.disabled = true; btn.textContent = 'Starting...'; }
+    try {
+      this.hydraStatus = await window.electronAPI.hydraStart();
+      this.updateHydraUI();
+      await this.loadHydraTools();
+      await this.loadMcpServers(); // Refresh server status
+    } catch (error) {
+      alert(`Failed to start gateway: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Start'; }
+    }
+  }
+
+  private async stopHydraGateway(): Promise<void> {
+    const btn = this.element.querySelector('#hydra-stop-btn') as HTMLButtonElement;
+    if (btn) { btn.disabled = true; btn.textContent = 'Stopping...'; }
+    try {
+      await window.electronAPI.hydraStop();
+      this.hydraStatus = await window.electronAPI.hydraGetStatus();
+      this.hydraTools = [];
+      this.updateHydraUI();
+      await this.loadMcpServers(); // Refresh server status
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Stop'; }
+    }
+  }
+
+  private async refreshHydraGateway(): Promise<void> {
+    const btn = this.element.querySelector('#hydra-refresh-btn') as HTMLButtonElement;
+    if (btn) { btn.disabled = true; btn.textContent = 'Refreshing...'; }
+    try {
+      this.hydraStatus = await window.electronAPI.hydraRefresh();
+      this.updateHydraUI();
+      await this.loadHydraTools();
+      await this.loadMcpServers(); // Refresh server status
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
+    }
+  }
+
+  private copyHydraUrl(): void {
+    const url = `http://localhost:${this.hydraStatus?.port || 3999}/mcp`;
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = this.element.querySelector('#hydra-copy-btn') as HTMLButtonElement;
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      }
+    });
+  }
+
+  private updateHydraUI(): void {
+    const isRunning = this.hydraStatus?.running ?? false;
+
+    // Status badge
+    const statusBadge = this.element.querySelector('#hydra-status-indicator') as HTMLElement;
+    if (statusBadge) {
+      statusBadge.textContent = isRunning ? `Running :${this.hydraStatus?.port}` : 'Stopped';
+      statusBadge.className = `hydra-status-badge ${isRunning ? 'running' : 'stopped'}`;
+    }
+
+    // Buttons
+    const startBtn = this.element.querySelector('#hydra-start-btn') as HTMLElement;
+    const stopBtn = this.element.querySelector('#hydra-stop-btn') as HTMLElement;
+    const refreshBtn = this.element.querySelector('#hydra-refresh-btn') as HTMLElement;
+    if (startBtn) startBtn.style.display = isRunning ? 'none' : 'inline-block';
+    if (stopBtn) stopBtn.style.display = isRunning ? 'inline-block' : 'none';
+    if (refreshBtn) refreshBtn.style.display = isRunning ? 'inline-block' : 'none';
+
+    // Connection info
+    const connInfo = this.element.querySelector('#hydra-connection-info') as HTMLElement;
+    if (connInfo) connInfo.style.display = isRunning ? 'block' : 'none';
+
+    const urlEl = this.element.querySelector('#hydra-url') as HTMLElement;
+    if (urlEl) urlEl.textContent = `http://localhost:${this.hydraStatus?.port || 3999}/mcp`;
+
+    // Tools section
+    const toolsSection = this.element.querySelector('#hydra-tools-section') as HTMLElement;
+    if (toolsSection) toolsSection.style.display = isRunning ? 'block' : 'none';
+  }
+
+  private updateHydraToolsUI(): void {
+    const countEl = this.element.querySelector('#hydra-tools-count') as HTMLElement;
+    const listEl = this.element.querySelector('#hydra-tools-list') as HTMLElement;
+
+    if (countEl) countEl.textContent = String(this.hydraTools.length);
+
+    if (listEl) {
+      if (this.hydraTools.length === 0) {
+        listEl.innerHTML = '<div class="hydra-tools-empty">No tools available</div>';
+      } else {
+        // Group by server
+        const byServer = new Map<string, typeof this.hydraTools>();
+        for (const tool of this.hydraTools) {
+          const list = byServer.get(tool.serverName) || [];
+          list.push(tool);
+          byServer.set(tool.serverName, list);
+        }
+        let html = '';
+        for (const [serverName, tools] of byServer) {
+          html += `<div class="hydra-tools-group">
+            <div class="hydra-tools-group-header">${this.escapeHtml(serverName)} (${tools.length})</div>
+            ${tools.map(t => `<div class="hydra-tool-item">
+              <span class="hydra-tool-name">${this.escapeHtml(t.name)}</span>
+              ${t.description ? `<span class="hydra-tool-desc">${this.escapeHtml(t.description)}</span>` : ''}
+            </div>`).join('')}
+          </div>`;
+        }
+        listEl.innerHTML = html;
+      }
+    }
   }
 
   // ==================== MCP Methods ====================

@@ -3,13 +3,17 @@ import { EventEmitter } from 'events';
 import {
   JsonRpcRequest,
   JsonRpcResponse,
-  JsonRpcError,
   MCPTool,
   MCPToolCallResult,
   MCPInitializeResult,
   MCPServerCapabilities,
+  HooksListResult,
+  HooksAddParams,
+  HooksUpdateParams,
+  HooksRemoveParams,
 } from './types';
 import { ToolRegistry } from './tool-registry';
+import { claudeSettingsManager } from '../claude-settings-manager';
 
 const PROTOCOL_VERSION = '2024-11-05';
 const SERVER_NAME = 'hydra-gateway';
@@ -154,6 +158,22 @@ export class HTTPServer extends EventEmitter {
           result = {};
           break;
 
+        case 'hooks/list':
+          result = this.handleHooksList();
+          break;
+
+        case 'hooks/add':
+          result = this.handleHooksAdd(params as unknown as HooksAddParams);
+          break;
+
+        case 'hooks/update':
+          result = this.handleHooksUpdate(params as unknown as HooksUpdateParams);
+          break;
+
+        case 'hooks/remove':
+          result = this.handleHooksRemove(params as unknown as HooksRemoveParams);
+          break;
+
         default:
           return {
             jsonrpc: '2.0',
@@ -246,6 +266,25 @@ export class HTTPServer extends EventEmitter {
         isError: true,
       };
     }
+  }
+
+  private handleHooksList(): HooksListResult {
+    return { hooks: claudeSettingsManager.getHooks() };
+  }
+
+  private handleHooksAdd(params: HooksAddParams): HooksListResult {
+    const { eventName, matcher, hookConfig } = params;
+    return { hooks: claudeSettingsManager.addHook(eventName, matcher, hookConfig) };
+  }
+
+  private handleHooksUpdate(params: HooksUpdateParams): HooksListResult {
+    const { eventName, entryIndex, hookIndex, newMatcher, hookConfig } = params;
+    return { hooks: claudeSettingsManager.updateHook(eventName, entryIndex, hookIndex, newMatcher, hookConfig) };
+  }
+
+  private handleHooksRemove(params: HooksRemoveParams): HooksListResult {
+    const { eventName, entryIndex, hookIndex } = params;
+    return { hooks: claudeSettingsManager.removeHook(eventName, entryIndex, hookIndex) };
   }
 
   getPort(): number {
