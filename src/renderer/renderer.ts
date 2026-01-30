@@ -7,6 +7,8 @@ import { settingsPanel } from './settings-panel';
 import { terminalSearch } from './terminal-search';
 import { snippetManager } from './snippets';
 import { attachmentPanel } from './attachment-panel';
+import { orchestratorPanel } from './orchestrator-panel';
+import { hydraStatusPanel } from './hydra-status';
 
 interface ProjectSplitState {
   projectId: string | null;
@@ -100,6 +102,36 @@ declare global {
       checkFileExists: (filePath: string) => Promise<boolean>;
       readImageAsBase64: (filePath: string) => Promise<string | null>;
       getPathForFile: (file: File) => string;
+      // MCP Server APIs
+      mcpGetServers: () => Promise<any[]>;
+      mcpAddServer: (server: any) => Promise<any>;
+      mcpUpdateServer: (id: string, updates: any) => Promise<any>;
+      mcpRemoveServer: (id: string) => Promise<boolean>;
+      mcpToggleServer: (id: string) => Promise<any>;
+      mcpGetTemplates: () => Promise<any>;
+      mcpImportSchemaFromUrl: (url: string) => Promise<any>;
+      mcpImportSchemaFromFile: () => Promise<any | null>;
+      mcpAddServerFromSchema: (schema: any, settings: Record<string, any>) => Promise<any>;
+      // Orchestrator APIs
+      orchestratorGetAgents: () => Promise<any[]>;
+      orchestratorGetWorkflows: () => Promise<any[]>;
+      orchestratorGetWorkflow: (id: string) => Promise<any | null>;
+      orchestratorCreateWorkflow: (task: string, includeDesignReview: boolean) => Promise<any>;
+      orchestratorRunStep: (workflowId: string) => Promise<any | null>;
+      orchestratorRunAllSteps: (workflowId: string) => Promise<any | null>;
+      orchestratorApproveWorkflow: (workflowId: string) => Promise<any | null>;
+      orchestratorRejectWorkflow: (workflowId: string, feedback: string) => Promise<any | null>;
+      orchestratorDeleteWorkflow: (workflowId: string) => Promise<boolean>;
+      orchestratorResetWorkflow: (workflowId: string) => Promise<any | null>;
+      // Hydra Gateway APIs
+      hydraStart: () => Promise<any>;
+      hydraStop: () => Promise<void>;
+      hydraRefresh: () => Promise<any>;
+      hydraGetStatus: () => Promise<any>;
+      hydraGetTools: () => Promise<Array<{ name: string; serverName: string; description?: string }>>;
+      hydraSetPort: (port: number) => Promise<void>;
+      onHydraStatusChange: (callback: (status: any) => void) => void;
+      onHydraServerStateChange: (callback: (data: { serverId: string; serverName: string; status: string; error?: string }) => void) => void;
     };
   }
 }
@@ -1019,6 +1051,33 @@ class HydraApp {
       category: 'View',
       action: () => this.setViewMode('multi'),
     });
+
+    commandRegistry.register({
+      id: 'settings.mcpServers',
+      label: 'MCP Server Settings',
+      category: 'Settings',
+      shortcut: '⌘⇧,',
+      keybinding: { key: 'Comma', metaKey: true, shiftKey: true },
+      action: () => this.showMCPSettings(),
+    });
+
+    commandRegistry.register({
+      id: 'view.orchestrator',
+      label: 'Agent Orchestrator',
+      category: 'View',
+      shortcut: '⌘⇧O',
+      keybinding: { key: 'o', metaKey: true, shiftKey: true },
+      action: () => this.showOrchestrator(),
+    });
+
+    commandRegistry.register({
+      id: 'view.hydraGateway',
+      label: 'Hydra MCP Gateway',
+      category: 'View',
+      shortcut: '⌘⇧H',
+      keybinding: { key: 'h', metaKey: true, shiftKey: true },
+      action: () => this.showHydraGateway(),
+    });
   }
 
   private showTerminalSearchBar(): void {
@@ -1045,6 +1104,39 @@ class HydraApp {
 
   private showAttachments(): void {
     attachmentPanel.toggle();
+  }
+
+  private showMCPSettings(): void {
+    if (!this.settings) return;
+    settingsPanel.showTab('mcp', this.settings, async (newSettings) => {
+      // Apply theme change
+      if (newSettings.theme !== this.settings?.theme) {
+        this.settings = await window.electronAPI.setTheme(newSettings.theme);
+      }
+      // Apply font changes
+      if (newSettings.fontFamily !== this.settings?.fontFamily ||
+          newSettings.fontSize !== this.settings?.fontSize) {
+        this.settings = await window.electronAPI.setFont(newSettings.fontFamily, newSettings.fontSize);
+      }
+      // Apply idle notification changes
+      if (newSettings.idleNotification.enabled !== this.settings?.idleNotification?.enabled ||
+          newSettings.idleNotification.timeoutSeconds !== this.settings?.idleNotification?.timeoutSeconds) {
+        this.settings = await window.electronAPI.setIdleNotification(
+          newSettings.idleNotification.enabled,
+          newSettings.idleNotification.timeoutSeconds
+        );
+      }
+      this.applyTheme();
+      this.fitAllTerminals();
+    });
+  }
+
+  private showOrchestrator(): void {
+    orchestratorPanel.toggle();
+  }
+
+  private showHydraGateway(): void {
+    hydraStatusPanel.toggle();
   }
 
   private toggleViewMode(): void {
@@ -1113,18 +1205,8 @@ class HydraApp {
     window.electronAPI.onAttentionChange((terminalIds: string[]) => {
       this.attentionTerminals = new Set(terminalIds);
       this.renderSidebar();
-      this.splitManager.render();
-
-      // Restore focus to active terminal after re-rendering
-      // (render() removes and re-adds DOM elements, causing focus loss)
-      if (this.activeTerminalId) {
-        const instance = this.terminals.get(this.activeTerminalId);
-        if (instance) {
-          setTimeout(() => {
-            instance.terminal.focus();
-          }, 0);
-        }
-      }
+      // Note: splitManager.render() removed to prevent focus loss
+      // Sidebar update is sufficient for attention badge display
     });
 
     window.addEventListener('resize', () => {
@@ -1175,6 +1257,37 @@ class HydraApp {
 
     document.getElementById('add-project-btn')?.addEventListener('click', () => {
       this.addProject();
+    });
+
+    // Menu event listeners
+    (window.electronAPI as any).onMenuOpenSettings?.(() => {
+      this.openSettings();
+    });
+
+    (window.electronAPI as any).onMenuNewTerminal?.(() => {
+      this.createTerminal();
+    });
+
+    (window.electronAPI as any).onMenuNewProject?.(() => {
+      this.addProject();
+    });
+
+    (window.electronAPI as any).onMenuCloseTerminal?.(() => {
+      if (this.activeTerminalId) {
+        this.closeTerminal(this.activeTerminalId);
+      }
+    });
+
+    (window.electronAPI as any).onMenuCommandPalette?.(() => {
+      this.commandPalette.show();
+    });
+
+    (window.electronAPI as any).onMenuSplitRight?.(() => {
+      this.splitTerminal('horizontal');
+    });
+
+    (window.electronAPI as any).onMenuSplitDown?.(() => {
+      this.splitTerminal('vertical');
     });
   }
 
@@ -1487,6 +1600,9 @@ class HydraApp {
     } else {
       this.renderSidebar();
     }
+
+    // 삭제된 프로젝트 데이터를 세션에서 즉시 제거
+    this.saveSession();
   }
 
   private async createTerminalInActiveProject(): Promise<void> {
@@ -1586,7 +1702,17 @@ class HydraApp {
   async createTerminal(name?: string, cwd?: string, projectId?: string | null): Promise<void> {
     // Use activeProjectId if projectId is not explicitly provided
     const terminalProjectId = projectId !== undefined ? projectId : this.activeProjectId;
-    const id = await window.electronAPI.createTerminal(name, cwd);
+
+    // If cwd is not specified and there's an active project, use the project's path
+    let effectiveCwd = cwd;
+    if (!effectiveCwd && this.activeProjectId) {
+      const activeProject = this.projects.get(this.activeProjectId);
+      if (activeProject?.path) {
+        effectiveCwd = activeProject.path;
+      }
+    }
+
+    const id = await window.electronAPI.createTerminal(name, effectiveCwd);
     const instance = this.createTerminalInstance(
       id,
       name || `Terminal ${this.terminals.size + 1}`,

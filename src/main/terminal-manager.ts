@@ -34,7 +34,10 @@ export class TerminalManager {
     });
 
     ptyProcess.onData((data: string) => {
-      if (this.mainWindow) {
+      // Check if terminal still exists (may have been destroyed)
+      if (!this.terminals.has(id)) return;
+
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
         this.mainWindow.webContents.send('terminal:output', id, data);
       }
       idleNotificationManager.recordActivity(id);
@@ -43,7 +46,7 @@ export class TerminalManager {
     ptyProcess.onExit(({ exitCode }) => {
       console.log(`Terminal ${id} exited with code ${exitCode}`);
       this.terminals.delete(id);
-      if (this.mainWindow) {
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
         this.mainWindow.webContents.send('terminal:closed', id);
       }
     });
@@ -62,9 +65,14 @@ export class TerminalManager {
   writeToTerminal(id: string, data: string): void {
     const terminal = this.terminals.get(id);
     if (terminal) {
-      terminal.pty.write(data);
-      if (data.includes('\r') || data.includes('\n')) {
-        idleNotificationManager.markAsActive(id);
+      try {
+        terminal.pty.write(data);
+        if (data.includes('\r') || data.includes('\n')) {
+          idleNotificationManager.markAsActive(id);
+        }
+      } catch (err) {
+        // Terminal may have been destroyed
+        console.log(`[Terminal ${id}] write ignored: terminal may be closed`);
       }
     }
   }
@@ -72,7 +80,12 @@ export class TerminalManager {
   resizeTerminal(id: string, cols: number, rows: number): void {
     const terminal = this.terminals.get(id);
     if (terminal) {
-      terminal.pty.resize(cols, rows);
+      try {
+        terminal.pty.resize(cols, rows);
+      } catch (err) {
+        // Terminal may have been destroyed, ignore resize errors
+        console.log(`[Terminal ${id}] resize ignored: terminal may be closed`);
+      }
     }
   }
 
@@ -80,8 +93,12 @@ export class TerminalManager {
     const terminal = this.terminals.get(id);
     if (terminal) {
       idleNotificationManager.unregisterTerminal(id);
-      terminal.pty.kill();
       this.terminals.delete(id);
+      try {
+        terminal.pty.kill();
+      } catch (err) {
+        // Terminal may already be destroyed
+      }
     }
   }
 
@@ -102,7 +119,11 @@ export class TerminalManager {
 
   closeAll(): void {
     for (const terminal of this.terminals.values()) {
-      terminal.pty.kill();
+      try {
+        terminal.pty.kill();
+      } catch (err) {
+        // Terminal may already be destroyed
+      }
     }
     this.terminals.clear();
   }

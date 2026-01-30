@@ -1,0 +1,12 @@
+{
+  "name": "obsidian-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for Obsidian vault management",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": ["mcp", "obsidian"],
+  "license": "MIT"
+}

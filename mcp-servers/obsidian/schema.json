@@ -1,0 +1,20 @@
+{
+  "name": "Obsidian",
+  "description": "Manage notes in your Obsidian vault - create, read, update, delete, and search notes",
+  "icon": "O",
+  "command": "node",
+  "args": ["/Users/yue0119/Documents/00_Private/01_Project/06_ai_multi_terminal-agent-orchestrator/mcp-servers/obsidian/index.js"],
+  "fields": [
+    {
+      "key": "vaultPath",
+      "label": "Vault Path",
+      "type": "text",
+      "placeholder": "/Users/yourname/Documents/ObsidianVault",
+      "required": true,
+      "helpText": "Full path to your Obsidian vault folder"
+    }
+  ],
+  "envMapping": {
+    "vaultPath": "OBSIDIAN_VAULT_PATH"
+  }
+}
