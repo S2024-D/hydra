@@ -14,7 +14,9 @@
     "dist": "npm run build && npm run copy:html && electron-builder",
     "dist:mac": "npm run build && npm run copy:html && electron-builder --mac",
     "dist:win": "npm run build && npm run copy:html && electron-builder --win",
-    "dist:linux": "npm run build && npm run copy:html && electron-builder --linux"
+    "dist:linux": "npm run build && npm run copy:html && electron-builder --linux",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "build": {
     "appId": "com.hydra.terminal",
@@ -29,13 +31,22 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "target": ["dmg", "zip"]
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "portable"
+      ]
     },
     "linux": {
-      "target": ["AppImage", "deb"]
+      "target": [
+        "AppImage",
+        "deb"
+      ]
     }
   },
   "keywords": [
@@ -50,7 +61,8 @@
     "electron": "^40.0.0",
     "electron-builder": "^26.4.0",
     "esbuild": "^0.27.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
