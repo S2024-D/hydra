@@ -119,25 +119,32 @@ export class ChildServerManager extends EventEmitter {
 
   private waitForReady(): Promise<void> {
     return new Promise((resolve, reject) => {
+      if (!this.process) {
+        reject(new Error('Process failed to start'));
+        return;
+      }
+
       const timeout = setTimeout(() => {
         reject(new Error('Timeout waiting for process to start'));
       }, 10000);
 
-      // Check if process is running
-      const checkReady = () => {
-        if (this.process && this.process.pid && !this.process.killed) {
-          clearTimeout(timeout);
-          // Give process a moment to initialize
-          setTimeout(resolve, 100);
-        } else if (!this.process || this.process.killed) {
-          clearTimeout(timeout);
-          reject(new Error('Process failed to start'));
-        } else {
-          setTimeout(checkReady, 100);
-        }
-      };
+      // If process already has a PID, it's spawned
+      if (this.process.pid && !this.process.killed) {
+        clearTimeout(timeout);
+        resolve();
+        return;
+      }
 
-      checkReady();
+      // Use spawn event instead of polling
+      this.process.once('spawn', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+
+      this.process.once('error', (err) => {
+        clearTimeout(timeout);
+        reject(err);
+      });
     });
   }
 
@@ -214,20 +221,32 @@ export class ChildServerManager extends EventEmitter {
         params,
       };
 
+      let settled = false;
+
       const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
         this.pendingRequests.delete(id);
         reject(new Error(`Request timeout for method: ${method}`));
       }, 30000);
 
       this.pendingRequests.set(id, {
         resolve: (response: JsonRpcResponse) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
           if (response.error) {
             reject(new Error(response.error.message));
           } else {
             resolve(response.result as T);
           }
         },
-        reject,
+        reject: (error: Error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          reject(error);
+        },
         timeout,
       });
 

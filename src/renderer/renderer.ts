@@ -1326,6 +1326,10 @@ class HydraApp {
       terminalId,
       lastAccessTime: Date.now()
     });
+    // Limit MRU list to 20 entries
+    if (this.mruList.length > 20) {
+      this.mruList = this.mruList.slice(0, 20);
+    }
   }
 
   private getMRUList(): string[] {

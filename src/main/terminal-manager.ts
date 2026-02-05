@@ -34,17 +34,22 @@ export class TerminalManager {
     });
 
     ptyProcess.onData((data: string) => {
-      // Check if terminal still exists (may have been destroyed)
-      if (!this.terminals.has(id)) return;
+      try {
+        // Check if terminal still exists (may have been destroyed)
+        if (!this.terminals.has(id)) return;
 
-      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.webContents.send('terminal:output', id, data);
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('terminal:output', id, data);
+        }
+        idleNotificationManager.recordActivity(id);
+      } catch (err) {
+        console.error(`[Terminal ${id}] Error processing output:`, err);
       }
-      idleNotificationManager.recordActivity(id);
     });
 
     ptyProcess.onExit(({ exitCode }) => {
       console.log(`Terminal ${id} exited with code ${exitCode}`);
+      idleNotificationManager.unregisterTerminal(id);
       this.terminals.delete(id);
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
         this.mainWindow.webContents.send('terminal:closed', id);

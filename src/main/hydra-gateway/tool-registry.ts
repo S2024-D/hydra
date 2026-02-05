@@ -4,10 +4,12 @@ import { ChildServerManager } from './child-server-manager';
 export class ToolRegistry {
   private tools = new Map<string, NamespacedTool>();
   private serverManagers = new Map<string, ChildServerManager>();
+  private searchCache = new Map<string, { nameLower: string; descriptionLower: string }>();
 
   clear(): void {
     this.tools.clear();
     this.serverManagers.clear();
+    this.searchCache.clear();
   }
 
   registerServer(manager: ChildServerManager): void {
@@ -20,15 +22,21 @@ export class ToolRegistry {
     // Register all tools from this server with namespaced names
     for (const tool of manager.getTools()) {
       const namespacedName = this.createNamespacedName(serverName, tool.name);
+      const description = this.formatDescription(serverName, tool.description);
       const namespacedTool: NamespacedTool = {
         ...tool,
         name: namespacedName,
         originalName: tool.name,
         serverId,
         serverName,
-        description: this.formatDescription(serverName, tool.description),
+        description,
       };
       this.tools.set(namespacedName, namespacedTool);
+      // Cache lowercase versions for search
+      this.searchCache.set(namespacedName, {
+        nameLower: namespacedName.toLowerCase(),
+        descriptionLower: description.toLowerCase(),
+      });
     }
   }
 
@@ -37,6 +45,7 @@ export class ToolRegistry {
     for (const [name, tool] of this.tools) {
       if (tool.serverId === serverId) {
         this.tools.delete(name);
+        this.searchCache.delete(name);
       }
     }
     this.serverManagers.delete(serverId);
@@ -82,11 +91,14 @@ export class ToolRegistry {
   // Find tools by partial name (for search functionality)
   searchTools(query: string): NamespacedTool[] {
     const lowerQuery = query.toLowerCase();
-    return Array.from(this.tools.values()).filter(
-      tool =>
-        tool.name.toLowerCase().includes(lowerQuery) ||
-        (tool.description?.toLowerCase().includes(lowerQuery) ?? false)
-    );
+    return Array.from(this.tools.values()).filter(tool => {
+      const cached = this.searchCache.get(tool.name);
+      if (cached) {
+        return cached.nameLower.includes(lowerQuery) || cached.descriptionLower.includes(lowerQuery);
+      }
+      return tool.name.toLowerCase().includes(lowerQuery) ||
+        (tool.description?.toLowerCase().includes(lowerQuery) ?? false);
+    });
   }
 
   // Get all tools for a specific server

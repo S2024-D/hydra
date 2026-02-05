@@ -10,6 +10,7 @@ interface TerminalActivityState {
   notificationSent: boolean;
   isActive: boolean;
   needsAttention: boolean;
+  notification: Notification | null;
 }
 
 export class IdleNotificationManager {
@@ -35,13 +36,20 @@ export class IdleNotificationManager {
       notificationSent: false,
       isActive: false,
       needsAttention: false,
+      notification: null,
     });
   }
 
   unregisterTerminal(id: string): void {
     const state = this.activityStates.get(id);
-    if (state?.timer) {
-      clearTimeout(state.timer);
+    if (state) {
+      if (state.timer) {
+        clearTimeout(state.timer);
+      }
+      if (state.notification) {
+        state.notification.close();
+        state.notification = null;
+      }
     }
     this.activityStates.delete(id);
   }
@@ -100,13 +108,8 @@ export class IdleNotificationManager {
     const settings = settingsManager.get();
     if (!settings.idleNotification.enabled) return;
 
-    // Skip notification if this terminal is currently active
-    if (this.activeTerminalId === id) {
-      return;
-    }
-
-    // Skip notification if app window is focused and this terminal is active
-    if (this.mainWindow?.isFocused() && this.activeTerminalId === id) {
+    // Skip notification if this terminal is currently active and window is focused
+    if (this.activeTerminalId === id && this.mainWindow?.isFocused()) {
       return;
     }
 
@@ -123,6 +126,11 @@ export class IdleNotificationManager {
 
     state.needsAttention = true;
     this.notifyAttentionChange();
+
+    // Close previous notification if exists
+    if (state.notification) {
+      state.notification.close();
+    }
 
     const displayName = state.projectName
       ? `${state.projectName} - ${state.terminalName}`
@@ -142,6 +150,13 @@ export class IdleNotificationManager {
       }
     });
 
+    notification.on('close', () => {
+      if (state.notification === notification) {
+        state.notification = null;
+      }
+    });
+
+    state.notification = notification;
     notification.show();
   }
 
@@ -191,6 +206,10 @@ export class IdleNotificationManager {
     for (const state of this.activityStates.values()) {
       if (state.timer) {
         clearTimeout(state.timer);
+      }
+      if (state.notification) {
+        state.notification.close();
+        state.notification = null;
       }
     }
     this.activityStates.clear();
