@@ -323,8 +323,29 @@ class MCPManager {
     return true;
   }
 
+  // Check if hostname resolves to a private/reserved IP
+  private isPrivateHost(hostname: string): boolean {
+    const privatePatterns = [
+      /^localhost$/i,
+      /^127\./,
+      /^10\./,
+      /^172\.(1[6-9]|2[0-9]|3[01])\./,
+      /^192\.168\./,
+      /^0\./,
+      /^169\.254\./,
+      /^\[::1\]$/,
+      /^\[fc/i,
+      /^\[fd/i,
+      /^\[fe80:/i,
+    ];
+    return privatePatterns.some(pattern => pattern.test(hostname));
+  }
+
   // Import schema from URL
   async importFromUrl(url: string): Promise<MCPServerSchema> {
+    const MAX_RESPONSE_SIZE = 5 * 1024 * 1024; // 5MB
+    const TIMEOUT_MS = 5000;
+
     try {
       // Validate URL
       const urlObj = new URL(url);
@@ -332,21 +353,55 @@ class MCPManager {
         throw new Error('URL must use http or https protocol');
       }
 
-      // Use net module from electron for fetching (or https/http)
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
+      // Block private/internal IPs (SSRF protection)
+      if (this.isPrivateHost(urlObj.hostname)) {
+        throw new Error('Requests to private/internal addresses are not allowed');
       }
 
-      const data = await response.json();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-      if (!this.validateSchema(data)) {
-        throw new Error('Invalid schema format. Required fields: name, command, args, fields, envMapping');
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
+        }
+
+        // Validate content-type
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json') && !contentType.includes('text/')) {
+          throw new Error('Response must be JSON or text content type');
+        }
+
+        // Check content-length if available
+        const contentLength = response.headers.get('content-length');
+        if (contentLength && parseInt(contentLength, 10) > MAX_RESPONSE_SIZE) {
+          throw new Error('Response too large (max 5MB)');
+        }
+
+        // Read with size limit
+        const text = await response.text();
+        if (text.length > MAX_RESPONSE_SIZE) {
+          throw new Error('Response too large (max 5MB)');
+        }
+
+        const data = JSON.parse(text);
+
+        if (!this.validateSchema(data)) {
+          throw new Error('Invalid schema format. Required fields: name, command, args, fields, envMapping');
+        }
+
+        return data;
+      } finally {
+        clearTimeout(timeout);
       }
-
-      return data;
     } catch (error) {
       if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('Failed to import schema from URL: Request timed out (5s)');
+        }
         throw new Error(`Failed to import schema from URL: ${error.message}`);
       }
       throw new Error('Failed to import schema from URL: Unknown error');
