@@ -7,6 +7,91 @@ export interface Project {
   terminalIds: string[];
 }
 
+export interface SessionData {
+  terminals: Array<{ id: string; name: string; projectId?: string }>;
+  activeTerminalId?: string;
+  timestamp?: number;
+}
+
+export interface Settings {
+  theme: 'dark' | 'light';
+  fontFamily: string;
+  fontSize: number;
+  terminalTheme: Record<string, string>;
+  idleNotification: { enabled: boolean; timeoutSeconds: number };
+}
+
+export interface Attachment {
+  id: string;
+  path: string;
+  title?: string;
+  linkedProjectId?: string;
+  timestamp: number;
+}
+
+export interface HookConfig {
+  type: 'command' | 'prompt';
+  command?: string;
+  prompt?: string;
+  timeout?: number;
+}
+
+export interface FlattenedHook {
+  id: string;
+  eventName: string;
+  entryIndex: number;
+  hookIndex: number;
+  matcher?: string;
+  hookConfig: HookConfig;
+}
+
+export interface MCPServerTemplate {
+  id: string;
+  type: string;
+  name: string;
+  enabled: boolean;
+  settings?: Record<string, unknown>;
+  custom?: { command: string; args: string[]; env: Record<string, string> };
+  importedSchema?: MCPServerSchema;
+}
+
+export interface MCPServerSchema {
+  name: string;
+  description?: string;
+  icon?: string;
+  command: string;
+  args: string[];
+  fields: Array<{ key: string; label: string; type: string; placeholder?: string; required?: boolean; default?: string | boolean | number; helpText?: string; helpUrl?: string }>;
+  envMapping: Record<string, string>;
+}
+
+export interface MCPTemplateDefinition {
+  name: string;
+  icon: string;
+  command: string;
+  args: string[];
+  fields: Array<{ key: string; label: string; type: string; placeholder?: string }>;
+}
+
+export interface AgentRole {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface WorkflowConfig {
+  id: string;
+  task: string;
+  status: string;
+  steps: Array<{ agent: string; status: string; output?: string }>;
+}
+
+export interface GatewayStatus {
+  running: boolean;
+  port: number;
+  servers: Array<{ id: string; name: string; status: string; error?: string }>;
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
   // Terminal APIs
   createTerminal: (name?: string, cwd?: string): Promise<string> => {
@@ -75,33 +160,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Session APIs
-  loadSession: (): Promise<any> => {
+  loadSession: (): Promise<SessionData | null> => {
     return ipcRenderer.invoke('session:load');
   },
 
-  saveSession: (data: any) => {
+  saveSession: (data: SessionData) => {
     ipcRenderer.send('session:save', data);
   },
 
   // Settings APIs
-  getSettings: (): Promise<any> => {
+  getSettings: (): Promise<Settings> => {
     return ipcRenderer.invoke('settings:get');
   },
 
-  updateSettings: (settings: any): Promise<any> => {
+  updateSettings: (settings: Partial<Settings>): Promise<Settings> => {
     return ipcRenderer.invoke('settings:update', settings);
   },
 
-  setTheme: (theme: 'dark' | 'light'): Promise<any> => {
+  setTheme: (theme: 'dark' | 'light'): Promise<Settings> => {
     return ipcRenderer.invoke('settings:setTheme', theme);
   },
 
-  setFont: (fontFamily: string, fontSize: number): Promise<any> => {
+  setFont: (fontFamily: string, fontSize: number): Promise<Settings> => {
     return ipcRenderer.invoke('settings:setFont', fontFamily, fontSize);
   },
 
   // Idle notification APIs
-  setIdleNotification: (enabled: boolean, timeoutSeconds?: number): Promise<any> => {
+  setIdleNotification: (enabled: boolean, timeoutSeconds?: number): Promise<Settings> => {
     return ipcRenderer.invoke('settings:setIdleNotification', enabled, timeoutSeconds);
   },
 
@@ -134,7 +219,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('attachment:selectImage');
   },
 
-  addAttachment: (filePath: string, title?: string, linkedProjectId?: string): Promise<any> => {
+  addAttachment: (filePath: string, title?: string, linkedProjectId?: string): Promise<Attachment> => {
     return ipcRenderer.invoke('attachment:add', filePath, title, linkedProjectId);
   },
 
@@ -142,11 +227,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('attachment:remove', id);
   },
 
-  updateAttachment: (id: string, updates: { title?: string; linkedProjectId?: string }): Promise<any> => {
+  updateAttachment: (id: string, updates: { title?: string; linkedProjectId?: string }): Promise<Attachment | null> => {
     return ipcRenderer.invoke('attachment:update', id, updates);
   },
 
-  getAttachments: (): Promise<any[]> => {
+  getAttachments: (): Promise<Attachment[]> => {
     return ipcRenderer.invoke('attachment:list');
   },
 
@@ -159,11 +244,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Claude Code hooks APIs
-  getClaudeHooks: (): Promise<any[]> => {
+  getClaudeHooks: (): Promise<FlattenedHook[]> => {
     return ipcRenderer.invoke('claude:getHooks');
   },
 
-  addClaudeHook: (eventName: string, matcher: string | undefined, hookConfig: any): Promise<any[]> => {
+  addClaudeHook: (eventName: string, matcher: string | undefined, hookConfig: HookConfig): Promise<FlattenedHook[]> => {
     return ipcRenderer.invoke('claude:addHook', eventName, matcher, hookConfig);
   },
 
@@ -172,12 +257,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     entryIndex: number,
     hookIndex: number,
     newMatcher: string | undefined,
-    hookConfig: any
-  ): Promise<any[]> => {
+    hookConfig: HookConfig
+  ): Promise<FlattenedHook[]> => {
     return ipcRenderer.invoke('claude:updateHook', eventName, entryIndex, hookIndex, newMatcher, hookConfig);
   },
 
-  removeClaudeHook: (eventName: string, entryIndex: number, hookIndex: number): Promise<any[]> => {
+  removeClaudeHook: (eventName: string, entryIndex: number, hookIndex: number): Promise<FlattenedHook[]> => {
     return ipcRenderer.invoke('claude:removeHook', eventName, entryIndex, hookIndex);
   },
 
@@ -221,15 +306,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 
   // MCP Server APIs
-  mcpGetServers: (): Promise<any[]> => {
+  mcpGetServers: (): Promise<MCPServerTemplate[]> => {
     return ipcRenderer.invoke('mcp:getServers');
   },
 
-  mcpAddServer: (server: any): Promise<any> => {
+  mcpAddServer: (server: Omit<MCPServerTemplate, 'id'>): Promise<MCPServerTemplate> => {
     return ipcRenderer.invoke('mcp:addServer', server);
   },
 
-  mcpUpdateServer: (id: string, updates: any): Promise<any> => {
+  mcpUpdateServer: (id: string, updates: Partial<Omit<MCPServerTemplate, 'id'>>): Promise<MCPServerTemplate | null> => {
     return ipcRenderer.invoke('mcp:updateServer', id, updates);
   },
 
@@ -237,56 +322,56 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('mcp:removeServer', id);
   },
 
-  mcpToggleServer: (id: string): Promise<any> => {
+  mcpToggleServer: (id: string): Promise<MCPServerTemplate | null> => {
     return ipcRenderer.invoke('mcp:toggleServer', id);
   },
 
-  mcpGetTemplates: (): Promise<any> => {
+  mcpGetTemplates: (): Promise<Record<string, MCPTemplateDefinition>> => {
     return ipcRenderer.invoke('mcp:getTemplates');
   },
 
-  mcpImportSchemaFromUrl: (url: string): Promise<any> => {
+  mcpImportSchemaFromUrl: (url: string): Promise<MCPServerSchema> => {
     return ipcRenderer.invoke('mcp:importSchemaFromUrl', url);
   },
 
-  mcpImportSchemaFromFile: (): Promise<any | null> => {
+  mcpImportSchemaFromFile: (): Promise<MCPServerSchema | null> => {
     return ipcRenderer.invoke('mcp:importSchemaFromFile');
   },
 
-  mcpAddServerFromSchema: (schema: any, settings: Record<string, any>): Promise<any> => {
+  mcpAddServerFromSchema: (schema: MCPServerSchema, settings: Record<string, unknown>): Promise<MCPServerTemplate> => {
     return ipcRenderer.invoke('mcp:addServerFromSchema', schema, settings);
   },
 
   // Orchestrator APIs
-  orchestratorGetAgents: (): Promise<any[]> => {
+  orchestratorGetAgents: (): Promise<AgentRole[]> => {
     return ipcRenderer.invoke('orchestrator:getAgents');
   },
 
-  orchestratorGetWorkflows: (): Promise<any[]> => {
+  orchestratorGetWorkflows: (): Promise<WorkflowConfig[]> => {
     return ipcRenderer.invoke('orchestrator:getWorkflows');
   },
 
-  orchestratorGetWorkflow: (id: string): Promise<any | null> => {
+  orchestratorGetWorkflow: (id: string): Promise<WorkflowConfig | null> => {
     return ipcRenderer.invoke('orchestrator:getWorkflow', id);
   },
 
-  orchestratorCreateWorkflow: (task: string, includeDesignReview: boolean): Promise<any> => {
+  orchestratorCreateWorkflow: (task: string, includeDesignReview: boolean): Promise<WorkflowConfig> => {
     return ipcRenderer.invoke('orchestrator:createWorkflow', task, includeDesignReview);
   },
 
-  orchestratorRunStep: (workflowId: string): Promise<any | null> => {
+  orchestratorRunStep: (workflowId: string): Promise<WorkflowConfig | null> => {
     return ipcRenderer.invoke('orchestrator:runStep', workflowId);
   },
 
-  orchestratorRunAllSteps: (workflowId: string): Promise<any | null> => {
+  orchestratorRunAllSteps: (workflowId: string): Promise<WorkflowConfig | null> => {
     return ipcRenderer.invoke('orchestrator:runAllSteps', workflowId);
   },
 
-  orchestratorApproveWorkflow: (workflowId: string): Promise<any | null> => {
+  orchestratorApproveWorkflow: (workflowId: string): Promise<WorkflowConfig | null> => {
     return ipcRenderer.invoke('orchestrator:approveWorkflow', workflowId);
   },
 
-  orchestratorRejectWorkflow: (workflowId: string, feedback: string): Promise<any | null> => {
+  orchestratorRejectWorkflow: (workflowId: string, feedback: string): Promise<WorkflowConfig | null> => {
     return ipcRenderer.invoke('orchestrator:rejectWorkflow', workflowId, feedback);
   },
 
@@ -294,12 +379,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('orchestrator:deleteWorkflow', workflowId);
   },
 
-  orchestratorResetWorkflow: (workflowId: string): Promise<any | null> => {
+  orchestratorResetWorkflow: (workflowId: string): Promise<WorkflowConfig | null> => {
     return ipcRenderer.invoke('orchestrator:resetWorkflow', workflowId);
   },
 
   // Hydra Gateway APIs
-  hydraStart: (): Promise<any> => {
+  hydraStart: (): Promise<GatewayStatus> => {
     return ipcRenderer.invoke('hydra:start');
   },
 
@@ -307,11 +392,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('hydra:stop');
   },
 
-  hydraRefresh: (): Promise<any> => {
+  hydraRefresh: (): Promise<GatewayStatus> => {
     return ipcRenderer.invoke('hydra:refresh');
   },
 
-  hydraGetStatus: (): Promise<any> => {
+  hydraGetStatus: (): Promise<GatewayStatus> => {
     return ipcRenderer.invoke('hydra:getStatus');
   },
 
@@ -323,7 +408,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('hydra:setPort', port);
   },
 
-  onHydraStatusChange: (callback: (status: any) => void) => {
+  onHydraStatusChange: (callback: (status: GatewayStatus) => void) => {
     ipcRenderer.on('hydra:statusChange', (_event, status) => {
       callback(status);
     });

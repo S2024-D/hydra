@@ -86,6 +86,11 @@ export interface MCPTemplateDefinition {
   fields: MCPTemplateField[];
 }
 
+// Sanitize environment variable values by removing shell metacharacters
+function sanitizeEnvValue(value: string): string {
+  return value.replace(/[;&|`$(){}!<>\n\r]/g, '');
+}
+
 // MCP Template Definitions
 export const MCP_TEMPLATES: Record<string, MCPTemplateDefinition> = {
   jira: {
@@ -94,9 +99,9 @@ export const MCP_TEMPLATES: Record<string, MCPTemplateDefinition> = {
     command: 'uvx',
     args: ['mcp-atlassian'],
     settingsToEnv: (settings) => ({
-      ...(settings?.url ? { JIRA_URL: settings.url } : {}),
-      ...(settings?.username ? { JIRA_USERNAME: settings.username } : {}),
-      ...(settings?.token ? { JIRA_API_TOKEN: settings.token } : {}),
+      ...(settings?.url ? { JIRA_URL: sanitizeEnvValue(settings.url) } : {}),
+      ...(settings?.username ? { JIRA_USERNAME: sanitizeEnvValue(settings.username) } : {}),
+      ...(settings?.token ? { JIRA_API_TOKEN: sanitizeEnvValue(settings.token) } : {}),
       ...(settings?.readOnly ? { READ_ONLY_MODE: 'true' } : {}),
     }),
     fields: [
@@ -112,7 +117,7 @@ export const MCP_TEMPLATES: Record<string, MCPTemplateDefinition> = {
     command: 'npx',
     args: ['-y', '@modelcontextprotocol/server-github'],
     settingsToEnv: (settings) => ({
-      ...(settings?.personalAccessToken ? { GITHUB_PERSONAL_ACCESS_TOKEN: settings.personalAccessToken } : {}),
+      ...(settings?.personalAccessToken ? { GITHUB_PERSONAL_ACCESS_TOKEN: sanitizeEnvValue(settings.personalAccessToken) } : {}),
     }),
     fields: [
       { key: 'personalAccessToken', label: 'Personal Access Token', type: 'password' },
@@ -259,7 +264,7 @@ class MCPManager {
       for (const [fieldKey, envVar] of Object.entries(schema.envMapping)) {
         const value = server.settings?.[fieldKey];
         if (value !== undefined && value !== null && value !== '') {
-          env[envVar] = String(value);
+          env[envVar] = sanitizeEnvValue(String(value));
         }
       }
 

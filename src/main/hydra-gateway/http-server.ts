@@ -74,8 +74,11 @@ export class HTTPServer extends EventEmitter {
   }
 
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // Set CORS headers (restrict to localhost only)
+    const origin = req.headers.origin || '';
+    if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 

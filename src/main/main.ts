@@ -208,20 +208,47 @@ function createMenu(): void {
   Menu.setApplicationMenu(menu);
 }
 
+// IPC input validation helpers
+function assertString(value: unknown, name: string): asserts value is string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`Invalid ${name}: expected non-empty string`);
+  }
+}
+
+function assertOptionalString(value: unknown, name: string): asserts value is string | undefined {
+  if (value !== undefined && typeof value !== 'string') {
+    throw new Error(`Invalid ${name}: expected string or undefined`);
+  }
+}
+
+function assertPositiveInt(value: unknown, name: string): asserts value is number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    throw new Error(`Invalid ${name}: expected positive integer`);
+  }
+}
+
 // IPC handlers for terminal management
 ipcMain.handle('terminal:create', (_event, name?: string, cwd?: string) => {
+  assertOptionalString(name, 'name');
+  assertOptionalString(cwd, 'cwd');
   return terminalManager.createTerminal(name, cwd);
 });
 
 ipcMain.on('terminal:input', (_event, id: string, data: string) => {
+  assertString(id, 'id');
+  if (typeof data !== 'string') return;
   terminalManager.writeToTerminal(id, data);
 });
 
 ipcMain.on('terminal:resize', (_event, id: string, cols: number, rows: number) => {
+  assertString(id, 'id');
+  assertPositiveInt(cols, 'cols');
+  assertPositiveInt(rows, 'rows');
   terminalManager.resizeTerminal(id, cols, rows);
 });
 
 ipcMain.on('terminal:close', (_event, id: string) => {
+  assertString(id, 'id');
   terminalManager.closeTerminal(id);
 });
 
@@ -230,6 +257,8 @@ ipcMain.handle('terminal:list', () => {
 });
 
 ipcMain.on('terminal:rename', (_event, id: string, name: string) => {
+  assertString(id, 'id');
+  assertString(name, 'name');
   terminalManager.renameTerminal(id, name);
 });
 
@@ -239,6 +268,7 @@ ipcMain.handle('project:add', async (): Promise<Project | null> => {
 });
 
 ipcMain.handle('project:remove', (_event, id: string): boolean => {
+  assertString(id, 'id');
   return projectManager.removeProject(id);
 });
 
@@ -251,14 +281,19 @@ ipcMain.handle('project:getActive', (): Project | null => {
 });
 
 ipcMain.handle('project:setActive', (_event, id: string): boolean => {
+  assertString(id, 'id');
   return projectManager.setActiveProject(id);
 });
 
 ipcMain.on('project:addTerminal', (_event, projectId: string, terminalId: string) => {
+  assertString(projectId, 'projectId');
+  assertString(terminalId, 'terminalId');
   projectManager.addTerminalToProject(projectId, terminalId);
 });
 
 ipcMain.on('project:removeTerminal', (_event, projectId: string, terminalId: string) => {
+  assertString(projectId, 'projectId');
+  assertString(terminalId, 'terminalId');
   projectManager.removeTerminalFromProject(projectId, terminalId);
 });
 
@@ -268,6 +303,7 @@ ipcMain.handle('session:load', (): SessionData | null => {
 });
 
 ipcMain.on('session:save', (_event, data: SessionData) => {
+  if (!data || typeof data !== 'object') return;
   sessionManager.save(data);
 });
 
@@ -277,19 +313,35 @@ ipcMain.handle('settings:get', (): Settings => {
 });
 
 ipcMain.handle('settings:update', (_event, newSettings: Partial<Settings>): Settings => {
+  if (!newSettings || typeof newSettings !== 'object') {
+    throw new Error('Invalid settings: expected object');
+  }
   return settingsManager.update(newSettings);
 });
 
 ipcMain.handle('settings:setTheme', (_event, theme: 'dark' | 'light'): Settings => {
+  if (theme !== 'dark' && theme !== 'light') {
+    throw new Error('Invalid theme: expected "dark" or "light"');
+  }
   return settingsManager.setTheme(theme);
 });
 
 ipcMain.handle('settings:setFont', (_event, fontFamily: string, fontSize: number): Settings => {
+  assertString(fontFamily, 'fontFamily');
+  if (typeof fontSize !== 'number' || fontSize < 8 || fontSize > 72) {
+    throw new Error('Invalid fontSize: expected number between 8 and 72');
+  }
   return settingsManager.setFont(fontFamily, fontSize);
 });
 
 // Idle notification settings
 ipcMain.handle('settings:setIdleNotification', (_event, enabled: boolean, timeoutSeconds?: number): Settings => {
+  if (typeof enabled !== 'boolean') {
+    throw new Error('Invalid enabled: expected boolean');
+  }
+  if (timeoutSeconds !== undefined && (typeof timeoutSeconds !== 'number' || timeoutSeconds < 1 || timeoutSeconds > 3600)) {
+    throw new Error('Invalid timeoutSeconds: expected number between 1 and 3600');
+  }
   const current = settingsManager.get();
   return settingsManager.update({
     idleNotification: {
@@ -301,6 +353,7 @@ ipcMain.handle('settings:setIdleNotification', (_event, enabled: boolean, timeou
 
 // Active terminal tracking for idle notification
 ipcMain.on('terminal:setActive', (_event, id: string | null) => {
+  if (id !== null && typeof id !== 'string') return;
   idleNotificationManager.setActiveTerminal(id);
   if (id) {
     idleNotificationManager.clearAttention(id);

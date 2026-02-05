@@ -10,6 +10,9 @@ export interface Attachment {
   timestamp: number;
 }
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+
 class AttachmentManager {
   private attachmentsPath: string;
   private attachments: Map<string, Attachment> = new Map();
@@ -18,6 +21,41 @@ class AttachmentManager {
     const userDataPath = app.getPath('userData');
     this.attachmentsPath = path.join(userDataPath, 'attachments.json');
     this.load();
+  }
+
+  private validateFilePath(filePath: string): void {
+    // Normalize and resolve the path
+    const resolved = path.resolve(filePath);
+
+    // Reject paths containing '..'
+    if (filePath.includes('..')) {
+      throw new Error('Path traversal detected: ".." is not allowed');
+    }
+
+    // Check symlink
+    try {
+      const realPath = fs.realpathSync(resolved);
+      if (realPath !== resolved) {
+        throw new Error('Symbolic links are not allowed');
+      }
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new Error('File not found');
+      }
+      throw err;
+    }
+
+    // Validate extension
+    const ext = path.extname(resolved).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      throw new Error(`File type "${ext}" is not allowed`);
+    }
+
+    // Check file size
+    const stats = fs.statSync(resolved);
+    if (stats.size > MAX_FILE_SIZE) {
+      throw new Error(`File too large (max ${MAX_FILE_SIZE / 1024 / 1024}MB)`);
+    }
   }
 
   private load(): void {
@@ -45,10 +83,12 @@ class AttachmentManager {
   }
 
   addAttachment(filePath: string, title?: string, linkedProjectId?: string): Attachment {
+    this.validateFilePath(filePath);
+
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2);
     const attachment: Attachment = {
       id,
-      path: filePath,
+      path: path.resolve(filePath),
       title,
       linkedProjectId,
       timestamp: Date.now(),
@@ -102,9 +142,7 @@ class AttachmentManager {
 
   readImageAsBase64(filePath: string): string | null {
     try {
-      if (!fs.existsSync(filePath)) {
-        return null;
-      }
+      this.validateFilePath(filePath);
       const buffer = fs.readFileSync(filePath);
       const ext = path.extname(filePath).toLowerCase();
       let mimeType = 'image/png';
