@@ -16,11 +16,20 @@ export interface ProjectSession {
   terminalIds: string[];
 }
 
+export interface ProjectSplitStateData {
+  projectId: string | null;
+  rootNode: any;
+  activeTerminalId: string | null;
+  viewMode?: string;
+  savedSingleViewRoot?: any;
+}
+
 export interface SessionData {
   terminals: TerminalSession[];
   projects: ProjectSession[];
   activeTerminalId: string | null;
   activeProjectId: string | null;
+  projectSplitStates?: ProjectSplitStateData[];
 }
 
 class SessionManager {

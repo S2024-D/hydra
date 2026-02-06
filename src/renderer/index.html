@@ -23,6 +23,8 @@
       --text-muted: #969696;
       --accent-color: #094771;
       --accent-hover: #007acc;
+      --highlight-color: #007acc;
+      --highlight-glow: rgba(0, 122, 204, 0.3);
     }
 
     [data-theme="light"] {
@@ -35,6 +37,8 @@
       --text-muted: #777777;
       --accent-color: #0078d4;
       --accent-hover: #106ebe;
+      --highlight-color: #0078d4;
+      --highlight-glow: rgba(0, 120, 212, 0.25);
     }
 
     html, body {
@@ -239,6 +243,7 @@
 
     .panel-group.active .panel-group-tabs {
       background-color: var(--bg-secondary);
+      border-top: 2px solid var(--highlight-color);
     }
 
     .panel-group-tabs {
@@ -341,7 +346,8 @@
     }
 
     .panel-group.active {
-      outline: 1px solid var(--accent-color);
+      box-shadow: inset 0 0 0 2px var(--highlight-color);
+      border-radius: 2px;
     }
 
     /* Terminals container */

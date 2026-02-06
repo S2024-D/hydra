@@ -1512,6 +1512,17 @@ class HydraApp {
     }
   }
 
+  private getSplitDepth(node: PanelNode): number {
+    if (node.type === 'group') return 0;
+    if (node.type === 'split') {
+      return 1 + Math.max(
+        this.getSplitDepth(node.children[0]),
+        this.getSplitDepth(node.children[1])
+      );
+    }
+    return 0;
+  }
+
   private fitAllTerminals(): void {
     for (const instance of this.terminals.values()) {
       instance.fitAddon.fit();
@@ -1605,7 +1616,14 @@ class HydraApp {
     const project = await window.electronAPI.addProject();
     if (project) {
       this.projects.set(project.id, project);
+
+      // Save current project's split state before switching
       this.saveCurrentProjectSplitState();
+
+      // Switch active project BEFORE creating terminal to avoid
+      // double-save of split state in createTerminal()
+      this.activeProjectId = project.id;
+
       this.renderSidebar();
       await this.createTerminalInProject(project.id);
     }
@@ -1778,15 +1796,17 @@ class HydraApp {
       }
     }
 
-    // Add to existing group or create new root for THIS project
-    const existingGroup = this.splitManager.getRoot();
-    if (existingGroup && existingGroup.type === 'group') {
-      this.splitManager.addTerminalToGroup(existingGroup, id);
-    } else if (existingGroup && existingGroup.type === 'split') {
-      // Find the active group in split and add there
+    // Add as a new split panel instead of a tab
+    const existingRoot = this.splitManager.getRoot();
+    if (existingRoot) {
+      // Find the active terminal to split from
       const activeGroup = this.splitManager.getActiveGroup();
-      if (activeGroup) {
-        this.splitManager.addTerminalToGroup(activeGroup, id);
+      const splitFromId = activeGroup?.activeTerminalId || this.activeTerminalId;
+      if (splitFromId) {
+        // Alternate split direction based on current tree depth
+        const depth = this.getSplitDepth(existingRoot);
+        const direction: SplitDirection = depth % 2 === 0 ? 'vertical' : 'horizontal';
+        this.splitManager.splitTerminal(splitFromId, direction, id);
       } else {
         this.splitManager.setRoot(id);
       }
