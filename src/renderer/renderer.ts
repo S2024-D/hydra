@@ -170,6 +170,10 @@ class HydraApp {
   private mruSwitcherIndex: number = 0;
   private mruSwitcherElement: HTMLElement | null = null;
 
+  // Tab navigation mode state
+  private navModeActive: boolean = false;
+  private navHighlightedGroupIndex: number = -1;
+
   // Drag state for panel tabs
   private panelDragState: {
     terminalId: string;
@@ -1274,6 +1278,45 @@ class HydraApp {
       return false;
     });
 
+    // Tab Navigation Mode handler (Cmd+Shift+J)
+    shortcutManager.registerCustomHandler('tab-navigation', (e: KeyboardEvent) => {
+      // Cmd+Shift+J: Toggle nav mode
+      if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        if (!this.navModeActive) {
+          this.enterNavMode();
+        } else {
+          this.confirmNavMode();
+        }
+        return true;
+      }
+
+      if (!this.navModeActive) return false;
+
+      // Arrow keys: navigate between panels
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+        this.navigateNavMode(e.key as 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight');
+        return true;
+      }
+
+      // Enter: confirm selection
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.confirmNavMode();
+        return true;
+      }
+
+      // Escape: cancel nav mode
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        this.exitNavMode();
+        return true;
+      }
+
+      return false;
+    });
+
     // Ctrl key release: Confirm MRU selection
     document.addEventListener('keyup', (e) => {
       if (e.key === 'Control' && this.mruSwitcherVisible) {
@@ -2041,6 +2084,125 @@ class HydraApp {
 
     section.appendChild(terminalList);
     return section;
+  }
+
+  // ===== Tab Navigation Mode =====
+
+  private enterNavMode(): void {
+    const groups = this.splitManager.getAllGroups();
+    if (groups.length <= 1) return;
+
+    this.navModeActive = true;
+    document.body.classList.add('nav-mode');
+
+    // Start at the currently active group
+    const activeGroup = this.splitManager.getActiveGroup();
+    this.navHighlightedGroupIndex = activeGroup ? groups.indexOf(activeGroup) : 0;
+    if (this.navHighlightedGroupIndex === -1) this.navHighlightedGroupIndex = 0;
+
+    this.updateNavHighlight();
+  }
+
+  private exitNavMode(): void {
+    this.navModeActive = false;
+    this.navHighlightedGroupIndex = -1;
+    document.body.classList.remove('nav-mode');
+    this.clearNavHighlight();
+
+    // Refocus current active terminal
+    if (this.activeTerminalId) {
+      const instance = this.terminals.get(this.activeTerminalId);
+      if (instance) {
+        instance.terminal.focus();
+      }
+    }
+  }
+
+  private confirmNavMode(): void {
+    const groups = this.splitManager.getAllGroups();
+    const targetGroup = groups[this.navHighlightedGroupIndex];
+
+    this.navModeActive = false;
+    this.navHighlightedGroupIndex = -1;
+    document.body.classList.remove('nav-mode');
+    this.clearNavHighlight();
+
+    if (targetGroup && targetGroup.activeTerminalId) {
+      this.focusTerminal(targetGroup.activeTerminalId);
+    }
+  }
+
+  private navigateNavMode(direction: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): void {
+    const groups = this.splitManager.getAllGroups();
+    if (groups.length === 0) return;
+
+    // Get bounding rects of all panel-group elements
+    const groupElements = Array.from(this.terminalsContainer.querySelectorAll('.panel-group'));
+    if (groupElements.length !== groups.length) return;
+
+    const currentRect = groupElements[this.navHighlightedGroupIndex]?.getBoundingClientRect();
+    if (!currentRect) return;
+
+    const currentCenterX = currentRect.left + currentRect.width / 2;
+    const currentCenterY = currentRect.top + currentRect.height / 2;
+
+    let bestIndex = -1;
+    let bestDistance = Infinity;
+
+    for (let i = 0; i < groupElements.length; i++) {
+      if (i === this.navHighlightedGroupIndex) continue;
+
+      const rect = groupElements[i].getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      const dx = centerX - currentCenterX;
+      const dy = centerY - currentCenterY;
+
+      // Check if this group is in the correct direction
+      let isValid = false;
+      switch (direction) {
+        case 'ArrowLeft':  isValid = dx < -10; break;
+        case 'ArrowRight': isValid = dx > 10; break;
+        case 'ArrowUp':    isValid = dy < -10; break;
+        case 'ArrowDown':  isValid = dy > 10; break;
+      }
+
+      if (!isValid) continue;
+
+      // Calculate distance with bias toward the primary axis
+      let distance: number;
+      if (direction === 'ArrowLeft' || direction === 'ArrowRight') {
+        distance = Math.abs(dx) + Math.abs(dy) * 2;
+      } else {
+        distance = Math.abs(dy) + Math.abs(dx) * 2;
+      }
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = i;
+      }
+    }
+
+    if (bestIndex !== -1) {
+      this.navHighlightedGroupIndex = bestIndex;
+      this.updateNavHighlight();
+    }
+  }
+
+  private updateNavHighlight(): void {
+    this.clearNavHighlight();
+    const groupElements = Array.from(this.terminalsContainer.querySelectorAll('.panel-group'));
+    const el = groupElements[this.navHighlightedGroupIndex];
+    if (el) {
+      el.classList.add('nav-highlight');
+    }
+  }
+
+  private clearNavHighlight(): void {
+    this.terminalsContainer.querySelectorAll('.panel-group.nav-highlight').forEach(el => {
+      el.classList.remove('nav-highlight');
+    });
   }
 }
 

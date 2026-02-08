@@ -350,6 +350,26 @@
       border-radius: 2px;
     }
 
+    /* Tab Navigation Mode */
+    .panel-group.nav-highlight {
+      box-shadow: inset 0 0 0 2px var(--highlight-color);
+      border-radius: 2px;
+    }
+
+    .panel-group.nav-highlight .panel-group-tabs {
+      background-color: var(--bg-secondary);
+      border-top: 2px solid var(--highlight-color);
+    }
+
+    body.nav-mode .panel-group.active:not(.nav-highlight) {
+      box-shadow: none;
+    }
+
+    body.nav-mode .panel-group.active:not(.nav-highlight) .panel-group-tabs {
+      background-color: var(--bg-tertiary);
+      border-top: none;
+    }
+
     /* Terminals container */
     #terminals-container {
       flex: 1;
