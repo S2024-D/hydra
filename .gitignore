@@ -4,4 +4,5 @@ dist/
 *.log
 .claude/
 *.md
+!README.md
 release/
