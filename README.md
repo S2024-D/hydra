@@ -5,11 +5,23 @@ Multi-terminal manager for AI agents. Built with Electron.
 ## Features
 
 - Multi-panel split terminal layout
-- Tab navigation mode (Cmd+Shift+J)
+- Tab navigation with single/multi view modes (Cmd+Shift+M toggles)
+  - **Single mode**: new tabs are added to the tab bar
+  - **Multi mode**: new tabs create split panels
+- Tab switching shortcuts (Cmd+Shift+] / Cmd+Shift+[)
 - MCP (Model Context Protocol) integration
 - Hydra Gateway with tool registry
 - Session persistence across project switches
 - Idle notification management
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| Cmd+Shift+J | Toggle tab navigation mode |
+| Cmd+Shift+M | Toggle single/multi view mode |
+| Cmd+Shift+] | Switch to next tab |
+| Cmd+Shift+[ | Switch to previous tab |
 
 ## Quick Install (macOS)
 
