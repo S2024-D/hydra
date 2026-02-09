@@ -304,6 +304,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('menu:splitDown', () => callback());
   },
 
+  onMenuNextTab: (callback: () => void) => {
+    ipcRenderer.on('menu:nextTab', () => callback());
+  },
+
+  onMenuPreviousTab: (callback: () => void) => {
+    ipcRenderer.on('menu:previousTab', () => callback());
+  },
 
   // MCP Server APIs
   mcpGetServers: (): Promise<MCPServerTemplate[]> => {

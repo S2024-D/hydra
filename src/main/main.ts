@@ -174,6 +174,21 @@ function createMenu(): void {
       submenu: [
         { role: 'minimize' },
         { role: 'zoom' },
+        { type: 'separator' },
+        {
+          label: 'Next Tab',
+          accelerator: 'CmdOrCtrl+Shift+]',
+          click: () => {
+            mainWindow?.webContents.send('menu:nextTab');
+          }
+        },
+        {
+          label: 'Previous Tab',
+          accelerator: 'CmdOrCtrl+Shift+[',
+          click: () => {
+            mainWindow?.webContents.send('menu:previousTab');
+          }
+        },
         ...(isMac ? [
           { type: 'separator' as const },
           { role: 'front' as const }

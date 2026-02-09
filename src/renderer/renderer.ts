@@ -1358,6 +1358,14 @@ class HydraApp {
     (window.electronAPI as any).onMenuSplitDown?.(() => {
       this.splitTerminal('vertical');
     });
+
+    (window.electronAPI as any).onMenuNextTab?.(() => {
+      this.switchToNextTabInGroup();
+    });
+
+    (window.electronAPI as any).onMenuPreviousTab?.(() => {
+      this.switchToPreviousTabInGroup();
+    });
   }
 
   // MRU Management
@@ -1839,19 +1847,34 @@ class HydraApp {
       }
     }
 
-    // Add as a new split panel instead of a tab
+    // Add terminal to the split manager based on the current view mode
     const existingRoot = this.splitManager.getRoot();
     if (existingRoot) {
-      // Find the active terminal to split from
-      const activeGroup = this.splitManager.getActiveGroup();
-      const splitFromId = activeGroup?.activeTerminalId || this.activeTerminalId;
-      if (splitFromId) {
-        // Alternate split direction based on current tree depth
-        const depth = this.getSplitDepth(existingRoot);
-        const direction: SplitDirection = depth % 2 === 0 ? 'vertical' : 'horizontal';
-        this.splitManager.splitTerminal(splitFromId, direction, id);
+      if (this.splitManager.getViewMode() === 'multi') {
+        // Multi view mode: add as a new split panel
+        const activeGroup = this.splitManager.getActiveGroup();
+        const splitFromId = activeGroup?.activeTerminalId || this.activeTerminalId;
+        if (splitFromId) {
+          const depth = this.getSplitDepth(existingRoot);
+          const direction: SplitDirection = depth % 2 === 0 ? 'vertical' : 'horizontal';
+          this.splitManager.splitTerminal(splitFromId, direction, id);
+        } else {
+          this.splitManager.setRoot(id);
+        }
       } else {
-        this.splitManager.setRoot(id);
+        // Single view mode (default): add as a tab in the active group
+        const activeGroup = this.splitManager.getActiveGroup();
+        if (activeGroup) {
+          this.splitManager.addTerminalToGroup(activeGroup, id);
+        } else {
+          // Fallback: find the first group and add there
+          const firstGroup = this.splitManager.getAllGroups()[0];
+          if (firstGroup) {
+            this.splitManager.addTerminalToGroup(firstGroup, id);
+          } else {
+            this.splitManager.setRoot(id);
+          }
+        }
       }
     } else {
       this.splitManager.setRoot(id);
