@@ -1675,6 +1675,9 @@ class HydraApp {
       // double-save of split state in createTerminal()
       this.activeProjectId = project.id;
 
+      // Clear splitManager so new project starts with a fresh layout
+      this.splitManager.clear();
+
       this.renderSidebar();
       await this.createTerminalInProject(project.id);
     }
