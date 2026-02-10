@@ -456,10 +456,43 @@ class HydraApp {
 
   private saveCurrentProjectSplitState(): void {
     const state = this.getOrCreateProjectSplitState(this.activeProjectId);
-    state.rootNode = this.splitManager.getRoot();
+    const currentRoot = this.splitManager.getRoot();
+    // Filter out terminal IDs that don't belong to this project
+    const validIds = new Set(
+      this.getTerminalsForProject(this.activeProjectId).map((t) => t.id)
+    );
+    state.rootNode = this.filterNodeByValidIds(currentRoot, validIds);
     state.activeTerminalId = this.activeTerminalId;
     state.viewMode = this.splitManager.getViewMode();
     state.savedSingleViewRoot = this.splitManager.getSavedSingleViewRoot();
+  }
+
+  /** Remove terminal IDs from a PanelNode tree that are not in validIds */
+  private filterNodeByValidIds(
+    node: PanelNode | null,
+    validIds: Set<string>
+  ): PanelNode | null {
+    if (!node) return null;
+    if (node.type === 'group') {
+      const filtered = node.terminalIds.filter((id) => validIds.has(id));
+      if (filtered.length === 0) return null;
+      return {
+        type: 'group',
+        terminalIds: filtered,
+        activeTerminalId: validIds.has(node.activeTerminalId)
+          ? node.activeTerminalId
+          : filtered[0],
+      };
+    }
+    if (node.type === 'split') {
+      const left = this.filterNodeByValidIds(node.children[0], validIds);
+      const right = this.filterNodeByValidIds(node.children[1], validIds);
+      if (left && right) {
+        return { type: 'split', direction: node.direction, children: [left, right], ratio: node.ratio };
+      }
+      return left || right;
+    }
+    return null;
   }
 
   private switchToProject(projectId: string | null): void {
@@ -477,13 +510,22 @@ class HydraApp {
     const terminalsForProject = this.getTerminalsForProject(projectId);
 
     if (state.rootNode) {
-      this.splitManager.setRootFromNode(state.rootNode);
+      // Filter restored rootNode to only include terminals belonging to this project
+      const validIds = new Set(terminalsForProject.map((t) => t.id));
+      const filteredRoot = this.filterNodeByValidIds(state.rootNode, validIds);
+      if (filteredRoot) {
+        this.splitManager.setRootFromNode(filteredRoot);
+        state.rootNode = filteredRoot;
+      } else {
+        this.splitManager.clear();
+        state.rootNode = null;
+      }
       // Restore view mode state
       this.splitManager.restoreViewModeState(
         state.viewMode || 'single',
         state.savedSingleViewRoot || null
       );
-      if (state.activeTerminalId && this.terminals.has(state.activeTerminalId)) {
+      if (state.activeTerminalId && this.terminals.has(state.activeTerminalId) && validIds.has(state.activeTerminalId)) {
         this.activeTerminalId = state.activeTerminalId;
       } else if (terminalsForProject.length > 0) {
         this.activeTerminalId = terminalsForProject[0].id;
